@@ -1,0 +1,9 @@
+{
+  "id": "obsidian-scribe",
+  "name": "Obsidian Scribe",
+  "version": "0.1.0",
+  "minAppVersion": "1.4.0",
+  "description": "Claude-native AI assistant for Obsidian",
+  "author": "Geoff Love",
+  "isDesktopOnly": false
+}

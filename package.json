@@ -1,0 +1,20 @@
+{
+  "name": "obsidian-scribe",
+  "version": "0.1.0",
+  "description": "Claude-native AI assistant for Obsidian",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production"
+  },
+  "devDependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@types/node": "^22.0.0",
+    "builtin-modules": "^4.0.0",
+    "esbuild": "^0.24.0",
+    "obsidian": "latest",
+    "tslib": "^2.8.0",
+    "typescript": "^5.6.0"
+  },
+  "dependencies": {}
+}
