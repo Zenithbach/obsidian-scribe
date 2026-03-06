@@ -5,12 +5,14 @@ export interface ScribeSettings {
   apiKeySecretName: string;
   extendedThinking: boolean;
   agentMode: boolean;
+  historyFolder: string;
 }
 
 export const DEFAULT_SETTINGS: ScribeSettings = {
   apiKeySecretName: '',
   extendedThinking: false,
   agentMode: false,
+  historyFolder: 'Scribe/History',
 };
 
 const MIGRATION_SECRET_NAME = 'scribe-api-key';
@@ -99,6 +101,19 @@ export class ScribeSettingTab extends PluginSettingTab {
             button.setDisabled(false);
           }
         })
+      );
+
+    new Setting(containerEl)
+      .setName('Chat History Folder')
+      .setDesc('Where to save chat conversations as Markdown files.')
+      .addText((text) =>
+        text
+          .setPlaceholder('Scribe/History')
+          .setValue(this.plugin.settings.historyFolder)
+          .onChange(async (value) => {
+            this.plugin.settings.historyFolder = value || 'Scribe/History';
+            await this.plugin.saveSettings();
+          })
       );
 
     new Setting(containerEl)
