@@ -1,14 +1,19 @@
 import { Plugin } from 'obsidian';
-import { ScribeSettings, DEFAULT_SETTINGS, ScribeSettingTab, loadApiKey } from './settings';
+import { ScribeSettings, DEFAULT_SETTINGS, ScribeSettingTab, migrateApiKeyToSecretStorage } from './settings';
 import { ChatView, CHAT_VIEW_TYPE } from './chat-view';
 
 export default class ScribePlugin extends Plugin {
   settings: ScribeSettings;
-  apiKey: string = '';
+
+  get apiKey(): string {
+    const secretName = this.settings?.apiKeySecretName;
+    if (!secretName) return '';
+    return this.app.secretStorage.getSecret(secretName) ?? '';
+  }
 
   async onload(): Promise<void> {
     await this.loadSettings();
-    this.apiKey = await loadApiKey(this);
+    await migrateApiKeyToSecretStorage(this);
 
     // Register the chat sidebar view
     this.registerView(CHAT_VIEW_TYPE, (leaf) => new ChatView(leaf, this));
