@@ -1,6 +1,8 @@
 import { ItemView, MarkdownRenderer, WorkspaceLeaf } from 'obsidian';
 import type ScribePlugin from './main';
 import { ChatMessage, ClaudeClient } from './claude-client';
+import { ContextBuilder } from './context-builder';
+import { VaultToolExecutor } from './vault-tools';
 
 export const CHAT_VIEW_TYPE = 'scribe-chat-view';
 
@@ -12,11 +14,16 @@ export class ChatView extends ItemView {
   private sendButton: HTMLButtonElement;
   private contextBanner: HTMLElement;
   private client: ClaudeClient | null = null;
+  private contextBuilder: ContextBuilder;
+  private toolExecutor: VaultToolExecutor;
   private isStreaming = false;
+  private thinkingContainer: HTMLElement | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: ScribePlugin) {
     super(leaf);
     this.plugin = plugin;
+    this.contextBuilder = new ContextBuilder(plugin.app);
+    this.toolExecutor = new VaultToolExecutor(plugin.app);
   }
 
   getViewType(): string {
@@ -36,14 +43,11 @@ export class ChatView extends ItemView {
     container.empty();
     container.addClass('scribe-chat-container');
 
-    // Context banner showing current note
     this.contextBanner = container.createDiv({ cls: 'scribe-context-banner' });
     this.updateContextBanner();
 
-    // Messages area
     this.messagesContainer = container.createDiv({ cls: 'scribe-messages' });
 
-    // Input area
     const inputArea = container.createDiv({ cls: 'scribe-input-area' });
 
     this.textarea = inputArea.createEl('textarea', {
@@ -57,7 +61,6 @@ export class ChatView extends ItemView {
       }
     });
 
-    // Auto-resize textarea
     this.textarea.addEventListener('input', () => {
       this.textarea.style.height = 'auto';
       this.textarea.style.height = Math.min(this.textarea.scrollHeight, 120) + 'px';
@@ -69,7 +72,6 @@ export class ChatView extends ItemView {
     });
     this.sendButton.addEventListener('click', () => this.sendMessage());
 
-    // Listen for active file changes
     this.registerEvent(
       this.app.workspace.on('active-leaf-change', () => this.updateContextBanner())
     );
@@ -77,13 +79,11 @@ export class ChatView extends ItemView {
 
   private updateContextBanner(): void {
     const file = this.app.workspace.getActiveFile();
-    this.contextBanner.setText(file ? `Context: ${file.basename}` : 'No note selected');
-  }
-
-  private async getActiveNoteContent(): Promise<string | null> {
-    const file = this.app.workspace.getActiveFile();
-    if (!file) return null;
-    return await this.app.vault.cachedRead(file);
+    const mode = this.plugin.settings.agentMode ? ' | Agent' : '';
+    const thinking = this.plugin.settings.extendedThinking ? ' | Thinking' : '';
+    this.contextBanner.setText(
+      file ? `Context: ${file.basename}${mode}${thinking}` : `No note selected${mode}${thinking}`
+    );
   }
 
   private async sendMessage(): Promise<void> {
@@ -95,46 +95,84 @@ export class ChatView extends ItemView {
       return;
     }
 
-    // Create client on demand (so it picks up key changes)
     this.client = new ClaudeClient(this.plugin.apiKey);
 
-    // Add user message
     this.messages.push({ role: 'user', content: text });
     this.renderMessage({ role: 'user', content: text });
 
-    // Clear input
     this.textarea.value = '';
     this.textarea.style.height = 'auto';
 
-    // Get current note context
-    const noteContext = await this.getActiveNoteContent();
+    // Build smart context from vault
+    const activeFile = this.app.workspace.getActiveFile();
+    const context = await this.contextBuilder.buildContext(activeFile);
 
-    // Create placeholder for assistant response
+    if (context.notes.length > 0) {
+      const names = context.notes.map((n) => n.title);
+      const display =
+        names.length <= 3
+          ? names.join(', ')
+          : `${names.slice(0, 3).join(', ')} +${names.length - 3} more`;
+      this.contextBanner.setText(
+        `Context: ${display} (~${Math.round(context.totalTokens / 1000)}k tokens)`
+      );
+    }
+
+    const noteContext = this.contextBuilder.formatForPrompt(context);
+
     const assistantEl = this.createAssistantBubble();
     this.isStreaming = true;
     this.sendButton.disabled = true;
 
-    await this.client.streamChat(this.messages, noteContext, {
-      onText: (text) => {
-        assistantEl.empty();
-        MarkdownRenderer.render(this.app, text, assistantEl, '', this.plugin);
-        assistantEl.addClass('scribe-streaming-cursor');
-        this.scrollToBottom();
+    if (this.plugin.settings.extendedThinking) {
+      this.thinkingContainer = this.createThinkingBlock();
+    }
+
+    const executor = this.plugin.settings.agentMode ? this.toolExecutor : undefined;
+
+    await this.client.streamChat(
+      this.messages,
+      noteContext || null,
+      {
+        onText: (text) => {
+          assistantEl.empty();
+          MarkdownRenderer.render(this.app, text, assistantEl, '', this.plugin);
+          assistantEl.addClass('scribe-streaming-cursor');
+          this.scrollToBottom();
+        },
+        onThinking: (thinking) => {
+          if (this.thinkingContainer) {
+            const content = this.thinkingContainer.querySelector('.scribe-thinking-content');
+            if (content) content.textContent = thinking;
+            this.scrollToBottom();
+          }
+        },
+        onToolUse: (toolName, input) => {
+          this.renderToolUse(toolName, input);
+        },
+        onToolResult: (toolName, result) => {
+          this.renderToolResult(toolName, result);
+        },
+        onDone: (fullText) => {
+          this.messages.push({ role: 'assistant', content: fullText });
+          assistantEl.removeClass('scribe-streaming-cursor');
+          this.isStreaming = false;
+          this.sendButton.disabled = false;
+          this.thinkingContainer = null;
+          this.textarea.focus();
+        },
+        onError: (error) => {
+          assistantEl.remove();
+          this.thinkingContainer?.remove();
+          this.thinkingContainer = null;
+          this.addErrorMessage(`Error: ${error.message}`);
+          this.isStreaming = false;
+          this.sendButton.disabled = false;
+        },
       },
-      onDone: (fullText) => {
-        this.messages.push({ role: 'assistant', content: fullText });
-        assistantEl.removeClass('scribe-streaming-cursor');
-        this.isStreaming = false;
-        this.sendButton.disabled = false;
-        this.textarea.focus();
-      },
-      onError: (error) => {
-        assistantEl.remove();
-        this.addErrorMessage(`Error: ${error.message}`);
-        this.isStreaming = false;
-        this.sendButton.disabled = false;
-      },
-    });
+      this.plugin.settings.extendedThinking,
+      executor
+    );
   }
 
   private renderMessage(msg: ChatMessage): void {
@@ -150,10 +188,35 @@ export class ChatView extends ItemView {
     this.scrollToBottom();
   }
 
+  private renderToolUse(toolName: string, input: Record<string, unknown>): void {
+    const el = this.messagesContainer.createDiv({ cls: 'scribe-tool-use' });
+    const summary = Object.values(input).join(', ');
+    el.setText(`Using ${toolName}: ${summary}`);
+    this.scrollToBottom();
+  }
+
+  private renderToolResult(toolName: string, result: string): void {
+    const el = this.messagesContainer.createDiv({ cls: 'scribe-tool-result' });
+    const truncated = result.length > 200 ? result.slice(0, 200) + '...' : result;
+    el.setText(`${toolName} result: ${truncated}`);
+    this.scrollToBottom();
+  }
+
   private createAssistantBubble(): HTMLElement {
     return this.messagesContainer.createDiv({
       cls: 'scribe-message scribe-message-assistant',
     });
+  }
+
+  private createThinkingBlock(): HTMLElement {
+    const wrapper = this.messagesContainer.createDiv({ cls: 'scribe-thinking-block' });
+    const toggle = wrapper.createDiv({ cls: 'scribe-thinking-toggle' });
+    toggle.setText('Thinking...');
+    toggle.addEventListener('click', () => {
+      wrapper.toggleClass('scribe-thinking-expanded', !wrapper.hasClass('scribe-thinking-expanded'));
+    });
+    wrapper.createDiv({ cls: 'scribe-thinking-content' });
+    return wrapper;
   }
 
   private addErrorMessage(text: string): void {

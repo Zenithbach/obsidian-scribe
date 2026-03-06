@@ -3,25 +3,26 @@ import type ScribePlugin from './main';
 
 export interface ScribeSettings {
   apiKey: string;
+  extendedThinking: boolean;
+  agentMode: boolean;
 }
 
 export const DEFAULT_SETTINGS: ScribeSettings = {
   apiKey: '',
+  extendedThinking: false,
+  agentMode: false,
 };
 
-// Key for Obsidian's SecretStorage (OS keychain)
 const SECRET_KEY = 'obsidian-scribe-api-key';
 
 export async function loadApiKey(plugin: ScribePlugin): Promise<string> {
-  // Try SecretStorage first, fall back to settings for migration
   const secret = await plugin.app.loadLocalStorage(SECRET_KEY);
   if (secret) return secret;
   if (plugin.settings.apiKey) {
-    // Migrate plaintext key to SecretStorage
     await saveApiKey(plugin, plugin.settings.apiKey);
     plugin.settings.apiKey = '';
     await plugin.saveSettings();
-    return await plugin.app.loadLocalStorage(SECRET_KEY) ?? '';
+    return (await plugin.app.loadLocalStorage(SECRET_KEY)) ?? '';
   }
   return '';
 }
@@ -58,6 +59,30 @@ export class ScribeSettingTab extends PluginSettingTab {
             }
           });
         text.inputEl.type = 'password';
+      });
+
+    new Setting(containerEl)
+      .setName('Extended Thinking')
+      .setDesc(
+        'Enable extended thinking for deeper analysis. Claude will show its reasoning process in a collapsible block. Uses more tokens.'
+      )
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.extendedThinking).onChange(async (value) => {
+          this.plugin.settings.extendedThinking = value;
+          await this.plugin.saveSettings();
+        });
+      });
+
+    new Setting(containerEl)
+      .setName('Agent Mode')
+      .setDesc(
+        'Allow Claude to read, search, create, and edit notes in your vault using tools. Claude will ask before making changes.'
+      )
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.settings.agentMode).onChange(async (value) => {
+          this.plugin.settings.agentMode = value;
+          await this.plugin.saveSettings();
+        });
       });
   }
 }
