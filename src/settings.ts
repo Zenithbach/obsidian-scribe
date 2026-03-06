@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, SecretComponent, Setting } from 'obsidian';
+import { App, Notice, PluginSettingTab, SecretComponent, Setting, requestUrl } from 'obsidian';
 import type ScribePlugin from './main';
 
 export interface ScribeSettings {
@@ -61,6 +61,44 @@ export class ScribeSettingTab extends PluginSettingTab {
             this.plugin.settings.apiKeySecretName = secretName;
             await this.plugin.saveSettings();
           })
+      );
+
+    new Setting(containerEl)
+      .setName('Test Connection')
+      .setDesc('Verify your Claude API key is working')
+      .addButton((button) =>
+        button.setButtonText('Test').onClick(async () => {
+          const apiKey = this.plugin.apiKey;
+          if (!apiKey) {
+            new Notice('No API key linked. Create a secret in Settings → Secrets first.');
+            return;
+          }
+          button.setButtonText('Testing...');
+          button.setDisabled(true);
+          try {
+            const response = await requestUrl({
+              url: 'https://api.anthropic.com/v1/models',
+              method: 'GET',
+              headers: {
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01',
+              },
+            });
+            if (response.status === 200) {
+              const data = response.json;
+              const count = data.data?.length ?? 0;
+              new Notice(`Connection successful — ${count} models available`);
+            } else {
+              new Notice(`Connection failed: HTTP ${response.status}`);
+            }
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : 'Unknown error';
+            new Notice(`Connection failed: ${msg}`);
+          } finally {
+            button.setButtonText('Test');
+            button.setDisabled(false);
+          }
+        })
       );
 
     new Setting(containerEl)
