@@ -3,6 +3,7 @@ import type ScribePlugin from './main';
 import { ChatMessage, ClaudeClient, ImageAttachment } from './claude-client';
 import { ContextBuilder } from './context-builder';
 import { VaultToolExecutor } from './vault-tools';
+import { ChatHistory } from './chat-history';
 
 export const CHAT_VIEW_TYPE = 'scribe-chat-view';
 
@@ -19,12 +20,16 @@ export class ChatView extends ItemView {
   private isStreaming = false;
   private thinkingContainer: HTMLElement | null = null;
   private pendingImages: { base64: string; mediaType: string }[] = [];
+  private chatHistory: ChatHistory;
+  private currentThinking: string = '';
+  private currentToolCalls: { name: string; input: Record<string, unknown>; result: string }[] = [];
 
   constructor(leaf: WorkspaceLeaf, plugin: ScribePlugin) {
     super(leaf);
     this.plugin = plugin;
     this.contextBuilder = new ContextBuilder(plugin.app);
     this.toolExecutor = new VaultToolExecutor(plugin.app);
+    this.chatHistory = new ChatHistory(plugin.app, plugin.settings.historyFolder);
   }
 
   getViewType(): string {
@@ -128,6 +133,17 @@ export class ChatView extends ItemView {
     this.messages.push({ role: 'user', content: text, images });
     this.renderMessage({ role: 'user', content: text, images });
 
+    // Auto-save: start session if needed, save user message
+    const activeFile = this.app.workspace.getActiveFile();
+    if (!this.chatHistory.getCurrentFilePath()) {
+      await this.chatHistory.startSession(activeFile?.basename);
+    }
+    await this.chatHistory.appendUserMessage(text);
+
+    // Reset per-message metadata collectors
+    this.currentThinking = '';
+    this.currentToolCalls = [];
+
     // Clear input and pending images
     this.pendingImages = [];
     this.textarea.value = '';
@@ -135,7 +151,6 @@ export class ChatView extends ItemView {
     this.containerEl.querySelector('.scribe-image-previews')?.remove();
 
     // Build smart context from vault
-    const activeFile = this.app.workspace.getActiveFile();
     const context = await this.contextBuilder.buildContext(activeFile);
 
     if (context.notes.length > 0) {
@@ -172,6 +187,7 @@ export class ChatView extends ItemView {
           this.scrollToBottom();
         },
         onThinking: (thinking) => {
+          this.currentThinking = thinking;
           if (this.thinkingContainer) {
             const content = this.thinkingContainer.querySelector('.scribe-thinking-content');
             if (content) content.textContent = thinking;
@@ -179,9 +195,12 @@ export class ChatView extends ItemView {
           }
         },
         onToolUse: (toolName, input) => {
+          this.currentToolCalls.push({ name: toolName, input, result: '' });
           this.renderToolUse(toolName, input);
         },
         onToolResult: (toolName, result) => {
+          const lastCall = this.currentToolCalls[this.currentToolCalls.length - 1];
+          if (lastCall) lastCall.result = result;
           this.renderToolResult(toolName, result);
         },
         onDone: (fullText) => {
@@ -191,6 +210,13 @@ export class ChatView extends ItemView {
           this.sendButton.disabled = false;
           this.thinkingContainer = null;
           this.textarea.focus();
+
+          // Auto-save assistant message with metadata
+          this.chatHistory.appendAssistantMessage(
+            fullText,
+            this.currentThinking || undefined,
+            this.currentToolCalls.length > 0 ? this.currentToolCalls : undefined
+          );
         },
         onError: (error) => {
           assistantEl.remove();
@@ -272,6 +298,9 @@ export class ChatView extends ItemView {
     this.sendButton.disabled = false;
     this.updateContextBanner();
     this.textarea.focus();
+
+    // Start fresh history for next chat
+    this.chatHistory = new ChatHistory(this.plugin.app, this.plugin.settings.historyFolder);
   }
 
   private handleFileDrop(e: DragEvent): void {
