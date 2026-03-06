@@ -1,6 +1,6 @@
-import { ItemView, MarkdownRenderer, WorkspaceLeaf } from 'obsidian';
+import { ItemView, MarkdownRenderer, WorkspaceLeaf, setIcon } from 'obsidian';
 import type ScribePlugin from './main';
-import { ChatMessage, ClaudeClient } from './claude-client';
+import { ChatMessage, ClaudeClient, ImageAttachment } from './claude-client';
 import { ContextBuilder } from './context-builder';
 import { VaultToolExecutor } from './vault-tools';
 
@@ -18,6 +18,7 @@ export class ChatView extends ItemView {
   private toolExecutor: VaultToolExecutor;
   private isStreaming = false;
   private thinkingContainer: HTMLElement | null = null;
+  private pendingImages: { base64: string; mediaType: string }[] = [];
 
   constructor(leaf: WorkspaceLeaf, plugin: ScribePlugin) {
     super(leaf);
@@ -43,8 +44,17 @@ export class ChatView extends ItemView {
     container.empty();
     container.addClass('scribe-chat-container');
 
-    this.contextBanner = container.createDiv({ cls: 'scribe-context-banner' });
+    // Header bar with context info and new chat button
+    const header = container.createDiv({ cls: 'scribe-header' });
+    this.contextBanner = header.createDiv({ cls: 'scribe-context-banner' });
     this.updateContextBanner();
+
+    const newChatBtn = header.createEl('button', {
+      cls: 'scribe-new-chat-button clickable-icon',
+      attr: { 'aria-label': 'New chat' },
+    });
+    setIcon(newChatBtn, 'plus');
+    newChatBtn.addEventListener('click', () => this.clearChat());
 
     this.messagesContainer = container.createDiv({ cls: 'scribe-messages' });
 
@@ -72,6 +82,23 @@ export class ChatView extends ItemView {
     });
     this.sendButton.addEventListener('click', () => this.sendMessage());
 
+    // Image drop zone
+    const dropZone = container;
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.addClass('scribe-drag-over');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.removeClass('scribe-drag-over'));
+    dropZone.addEventListener('drop', (e: DragEvent) => {
+      e.preventDefault();
+      dropZone.removeClass('scribe-drag-over');
+      this.handleFileDrop(e);
+    });
+
+    // Image paste
+    this.textarea.addEventListener('paste', (e) => this.handlePaste(e));
+
     this.registerEvent(
       this.app.workspace.on('active-leaf-change', () => this.updateContextBanner())
     );
@@ -97,11 +124,15 @@ export class ChatView extends ItemView {
 
     this.client = new ClaudeClient(this.plugin.apiKey);
 
-    this.messages.push({ role: 'user', content: text });
-    this.renderMessage({ role: 'user', content: text });
+    const images = this.pendingImages.length > 0 ? [...this.pendingImages] : undefined;
+    this.messages.push({ role: 'user', content: text, images });
+    this.renderMessage({ role: 'user', content: text, images });
 
+    // Clear input and pending images
+    this.pendingImages = [];
     this.textarea.value = '';
     this.textarea.style.height = 'auto';
+    this.containerEl.querySelector('.scribe-image-previews')?.remove();
 
     // Build smart context from vault
     const activeFile = this.app.workspace.getActiveFile();
@@ -182,7 +213,10 @@ export class ChatView extends ItemView {
     if (msg.role === 'assistant') {
       MarkdownRenderer.render(this.app, msg.content, el, '', this.plugin);
     } else {
-      el.setText(msg.content);
+      if (msg.images && msg.images.length > 0) {
+        el.createDiv({ cls: 'scribe-image-indicator', text: `[${msg.images.length} image${msg.images.length > 1 ? 's' : ''} attached]` });
+      }
+      el.createSpan({ text: msg.content });
     }
 
     this.scrollToBottom();
@@ -226,6 +260,71 @@ export class ChatView extends ItemView {
     el.style.color = 'var(--text-error)';
     el.setText(text);
     this.scrollToBottom();
+  }
+
+  private clearChat(): void {
+    this.client?.abort();
+    this.messages = [];
+    this.pendingImages = [];
+    this.messagesContainer.empty();
+    this.thinkingContainer = null;
+    this.isStreaming = false;
+    this.sendButton.disabled = false;
+    this.updateContextBanner();
+    this.textarea.focus();
+  }
+
+  private handleFileDrop(e: DragEvent): void {
+    const files = e.dataTransfer?.files;
+    if (!files) return;
+    for (let i = 0; i < files.length; i++) {
+      this.processImageFile(files[i]);
+    }
+  }
+
+  private handlePaste(e: ClipboardEvent): void {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        e.preventDefault();
+        const file = items[i].getAsFile();
+        if (file) this.processImageFile(file);
+      }
+    }
+  }
+
+  private processImageFile(file: File): void {
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      this.addErrorMessage(`Unsupported image type: ${file.type}. Use JPEG, PNG, GIF, or WebP.`);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(',')[1];
+      this.pendingImages.push({ base64, mediaType: file.type });
+      this.showImagePreview(file.name);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  private showImagePreview(filename: string): void {
+    // Show a small indicator near the input
+    const existing = this.containerEl.querySelector('.scribe-image-previews');
+    const container = existing ?? this.containerEl.querySelector('.scribe-input-area')?.createDiv({ cls: 'scribe-image-previews' });
+    if (!container) return;
+
+    const chip = (container as HTMLElement).createDiv({ cls: 'scribe-image-chip' });
+    chip.setText(filename);
+    const removeBtn = chip.createEl('span', { cls: 'scribe-image-chip-remove', text: ' x' });
+    removeBtn.addEventListener('click', () => {
+      const idx = Array.from(container.children).indexOf(chip);
+      if (idx >= 0) this.pendingImages.splice(idx, 1);
+      chip.remove();
+      if (container.children.length === 0) container.remove();
+    });
   }
 
   private scrollToBottom(): void {

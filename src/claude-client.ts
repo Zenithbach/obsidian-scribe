@@ -1,9 +1,15 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { VAULT_TOOLS, VaultToolExecutor } from './vault-tools';
 
+export interface ImageAttachment {
+  base64: string;
+  mediaType: string;
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  images?: ImageAttachment[];
 }
 
 export interface StreamCallbacks {
@@ -57,10 +63,21 @@ export class ClaudeClient {
     toolExecutor?: VaultToolExecutor,
     maxLoops = 10
   ): Promise<void> {
-    const apiMessages: Anthropic.MessageParam[] = messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
+    const apiMessages: Anthropic.MessageParam[] = messages.map((m) => {
+      if (m.images && m.images.length > 0) {
+        const content: Anthropic.ContentBlockParam[] = m.images.map((img) => ({
+          type: 'image' as const,
+          source: {
+            type: 'base64' as const,
+            media_type: img.mediaType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+            data: img.base64,
+          },
+        }));
+        content.push({ type: 'text' as const, text: m.content });
+        return { role: m.role, content };
+      }
+      return { role: m.role, content: m.content };
+    });
 
     let fullText = '';
     let thinkingText = '';
