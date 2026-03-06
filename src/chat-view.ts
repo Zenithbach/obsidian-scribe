@@ -327,6 +327,11 @@ export class ChatView extends ItemView {
     });
   }
 
+  sendPrefilled(text: string): void {
+    this.textarea.value = text;
+    this.sendMessage();
+  }
+
   private scrollToBottom(): void {
     this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
   }

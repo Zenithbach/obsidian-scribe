@@ -25,6 +25,23 @@ export default class ScribePlugin extends Plugin {
       callback: () => this.activateChatView(),
     });
 
+    // Command to summarize active note
+    this.addCommand({
+      id: 'summarize-note',
+      name: 'Summarize current note',
+      callback: () => {
+        this.activateChatView();
+        // Small delay to ensure view is ready
+        setTimeout(() => {
+          const leaves = this.app.workspace.getLeavesOfType(CHAT_VIEW_TYPE);
+          if (leaves.length) {
+            const view = leaves[0].view as ChatView;
+            view.sendPrefilled('Please summarize this note concisely.');
+          }
+        }, 200);
+      },
+    });
+
     // Settings tab
     this.addSettingTab(new ScribeSettingTab(this.app, this));
   }
