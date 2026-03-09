@@ -1,9 +1,9 @@
 import { Notice, Plugin } from 'obsidian';
-import { ScribeSettings, DEFAULT_SETTINGS, ScribeSettingTab, migrateApiKeyToSecretStorage } from './settings';
+import { AnthraciteSettings, DEFAULT_SETTINGS, AnthraciteSettingTab, migrateApiKeyToSecretStorage } from './settings';
 import { ChatView, CHAT_VIEW_TYPE } from './chat-view';
 
-export default class ScribePlugin extends Plugin {
-  settings: ScribeSettings;
+export default class AnthracitePlugin extends Plugin {
+  settings: AnthraciteSettings;
 
   get apiKey(): string {
     const secretName = this.settings?.apiKeySecretName;
@@ -19,7 +19,7 @@ export default class ScribePlugin extends Plugin {
     this.registerView(CHAT_VIEW_TYPE, (leaf) => new ChatView(leaf, this));
 
     // Add ribbon icon to open chat
-    this.addRibbonIcon('message-circle', 'Open Scribe Chat', () => {
+    this.addRibbonIcon('message-circle', 'Open Anthracite Chat', () => {
       this.activateChatView();
     });
 
@@ -68,7 +68,7 @@ export default class ScribePlugin extends Plugin {
     });
 
     // Settings tab
-    this.addSettingTab(new ScribeSettingTab(this.app, this));
+    this.addSettingTab(new AnthraciteSettingTab(this.app, this));
   }
 
   async onunload(): Promise<void> {

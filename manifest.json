@@ -1,9 +1,9 @@
 {
-  "id": "obsidian-scribe",
-  "name": "Obsidian Scribe",
+  "id": "obsidian-anthracite",
+  "name": "Anthracite",
   "version": "0.1.0",
   "minAppVersion": "1.11.4",
-  "description": "Claude-native AI assistant for Obsidian",
+  "description": "Claude-native AI assistant for Obsidian — chat, think, and edit your vault with Claude",
   "author": "Geoff Love",
   "isDesktopOnly": false
 }

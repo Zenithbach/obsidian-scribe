@@ -102,10 +102,10 @@ export class ChatHistory {
       `created: ${this.created}`,
       `context: "${this.contextName}"`,
       'tags:',
-      '  - scribe-chat',
+      '  - anthracite-chat',
       '---',
       '',
-      `# Scribe Chat — ${this.contextName}`,
+      `# Anthracite Chat — ${this.contextName}`,
       '',
     ].join('\n');
 
