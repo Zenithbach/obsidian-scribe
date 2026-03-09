@@ -1,15 +1,15 @@
 import { ItemView, MarkdownRenderer, Notice, WorkspaceLeaf, setIcon } from 'obsidian';
-import type ScribePlugin from './main';
+import type AnthracitePlugin from './main';
 import { ChatMessage, ClaudeClient, ImageAttachment } from './claude-client';
 import { CLAUDE_MODELS } from './settings';
 import { ContextBuilder } from './context-builder';
 import { VaultToolExecutor } from './vault-tools';
 import { ChatHistory } from './chat-history';
 
-export const CHAT_VIEW_TYPE = 'scribe-chat-view';
+export const CHAT_VIEW_TYPE = 'anthracite-chat-view';
 
 export class ChatView extends ItemView {
-  plugin: ScribePlugin;
+  plugin: AnthracitePlugin;
   private messages: ChatMessage[] = [];
   private messagesContainer: HTMLElement;
   private textarea: HTMLTextAreaElement;
@@ -26,7 +26,7 @@ export class ChatView extends ItemView {
   private currentToolCalls: { name: string; input: Record<string, unknown>; result: string }[] = [];
   private thinkingAutoCollapsed = false;
 
-  constructor(leaf: WorkspaceLeaf, plugin: ScribePlugin) {
+  constructor(leaf: WorkspaceLeaf, plugin: AnthracitePlugin) {
     super(leaf);
     this.plugin = plugin;
     this.contextBuilder = new ContextBuilder(plugin.app);
@@ -39,7 +39,7 @@ export class ChatView extends ItemView {
   }
 
   getDisplayText(): string {
-    return 'Scribe Chat';
+    return 'Anthracite Chat';
   }
 
   getIcon(): string {
@@ -49,33 +49,33 @@ export class ChatView extends ItemView {
   async onOpen(): Promise<void> {
     const container = this.containerEl.children[1];
     container.empty();
-    container.addClass('scribe-chat-container');
+    container.addClass('anthracite-chat-container');
 
     // Header bar with context info and new chat button
-    const header = container.createDiv({ cls: 'scribe-header' });
-    this.contextBanner = header.createDiv({ cls: 'scribe-context-banner' });
+    const header = container.createDiv({ cls: 'anthracite-header' });
+    this.contextBanner = header.createDiv({ cls: 'anthracite-context-banner' });
     this.updateContextBanner();
 
     const newChatBtn = header.createEl('button', {
-      cls: 'scribe-new-chat-button clickable-icon',
+      cls: 'anthracite-new-chat-button clickable-icon',
       attr: { 'aria-label': 'New chat' },
     });
     setIcon(newChatBtn, 'plus');
     newChatBtn.addEventListener('click', () => this.clearChat());
 
     const splitChatBtn = header.createEl('button', {
-      cls: 'scribe-new-chat-button clickable-icon',
+      cls: 'anthracite-new-chat-button clickable-icon',
       attr: { 'aria-label': 'Split chat (new topic)' },
     });
     setIcon(splitChatBtn, 'scissors');
     splitChatBtn.addEventListener('click', () => this.splitChat());
 
-    this.messagesContainer = container.createDiv({ cls: 'scribe-messages' });
+    this.messagesContainer = container.createDiv({ cls: 'anthracite-messages' });
 
-    const inputArea = container.createDiv({ cls: 'scribe-input-area' });
+    const inputArea = container.createDiv({ cls: 'anthracite-input-area' });
 
     this.textarea = inputArea.createEl('textarea', {
-      attr: { placeholder: 'Ask Scribe anything...', rows: '1' },
+      attr: { placeholder: 'Ask Anthracite anything...', rows: '1' },
     });
 
     this.textarea.addEventListener('keydown', (e: KeyboardEvent) => {
@@ -92,7 +92,7 @@ export class ChatView extends ItemView {
 
     this.sendButton = inputArea.createEl('button', {
       text: 'Send',
-      cls: 'scribe-send-button',
+      cls: 'anthracite-send-button',
     });
     this.sendButton.addEventListener('click', () => this.sendMessage());
 
@@ -101,12 +101,12 @@ export class ChatView extends ItemView {
     dropZone.addEventListener('dragover', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      dropZone.addClass('scribe-drag-over');
+      dropZone.addClass('anthracite-drag-over');
     });
-    dropZone.addEventListener('dragleave', () => dropZone.removeClass('scribe-drag-over'));
+    dropZone.addEventListener('dragleave', () => dropZone.removeClass('anthracite-drag-over'));
     dropZone.addEventListener('drop', (e: DragEvent) => {
       e.preventDefault();
-      dropZone.removeClass('scribe-drag-over');
+      dropZone.removeClass('anthracite-drag-over');
       this.handleFileDrop(e);
     });
 
@@ -134,7 +134,7 @@ export class ChatView extends ItemView {
     if (!text || this.isStreaming) return;
 
     if (!this.plugin.apiKey) {
-      this.addErrorMessage('Please set your Claude API key in Settings > Obsidian Scribe.');
+      this.addErrorMessage('Please set your Claude API key in Settings > Anthracite.');
       return;
     }
 
@@ -167,7 +167,7 @@ export class ChatView extends ItemView {
     this.pendingImages = [];
     this.textarea.value = '';
     this.textarea.style.height = 'auto';
-    this.containerEl.querySelector('.scribe-image-previews')?.remove();
+    this.containerEl.querySelector('.anthracite-image-previews')?.remove();
 
     // Build smart context from vault
     const context = await this.contextBuilder.buildContext(activeFile);
@@ -188,7 +188,7 @@ export class ChatView extends ItemView {
     // Create thinking block FIRST (above response) if enabled
     if (this.plugin.settings.extendedThinking) {
       this.thinkingContainer = this.createThinkingBlock();
-      this.thinkingContainer.addClass('scribe-thinking-expanded'); // Start expanded
+      this.thinkingContainer.addClass('anthracite-thinking-expanded'); // Start expanded
     }
 
     const assistantEl = this.createAssistantBubble();
@@ -207,18 +207,18 @@ export class ChatView extends ItemView {
         onText: (text) => {
           // Auto-collapse thinking when response text starts arriving
           if (!this.thinkingAutoCollapsed && this.thinkingContainer) {
-            this.thinkingContainer.removeClass('scribe-thinking-expanded');
+            this.thinkingContainer.removeClass('anthracite-thinking-expanded');
             this.thinkingAutoCollapsed = true;
           }
           assistantEl.empty();
           MarkdownRenderer.render(this.app, text, assistantEl, '', this.plugin);
-          assistantEl.addClass('scribe-streaming-cursor');
+          assistantEl.addClass('anthracite-streaming-cursor');
           this.scrollToBottom();
         },
         onThinking: (thinking) => {
           this.currentThinking = thinking;
           if (this.thinkingContainer) {
-            const content = this.thinkingContainer.querySelector('.scribe-thinking-content');
+            const content = this.thinkingContainer.querySelector('.anthracite-thinking-content');
             if (content) content.textContent = thinking;
             this.scrollToBottom();
           }
@@ -234,7 +234,7 @@ export class ChatView extends ItemView {
         },
         onDone: (fullText) => {
           this.messages.push({ role: 'assistant', content: fullText });
-          assistantEl.removeClass('scribe-streaming-cursor');
+          assistantEl.removeClass('anthracite-streaming-cursor');
           this.isStreaming = false;
           this.sendButton.disabled = false;
           this.thinkingContainer = null;
@@ -265,14 +265,14 @@ export class ChatView extends ItemView {
   }
 
   private renderMessage(msg: ChatMessage): void {
-    const cls = msg.role === 'user' ? 'scribe-message-user' : 'scribe-message-assistant';
-    const el = this.messagesContainer.createDiv({ cls: `scribe-message ${cls}` });
+    const cls = msg.role === 'user' ? 'anthracite-message-user' : 'anthracite-message-assistant';
+    const el = this.messagesContainer.createDiv({ cls: `anthracite-message ${cls}` });
 
     if (msg.role === 'assistant') {
       MarkdownRenderer.render(this.app, msg.content, el, '', this.plugin);
     } else {
       if (msg.images && msg.images.length > 0) {
-        el.createDiv({ cls: 'scribe-image-indicator', text: `[${msg.images.length} image${msg.images.length > 1 ? 's' : ''} attached]` });
+        el.createDiv({ cls: 'anthracite-image-indicator', text: `[${msg.images.length} image${msg.images.length > 1 ? 's' : ''} attached]` });
       }
       el.createSpan({ text: msg.content });
     }
@@ -281,14 +281,14 @@ export class ChatView extends ItemView {
   }
 
   private renderToolUse(toolName: string, input: Record<string, unknown>): void {
-    const el = this.messagesContainer.createDiv({ cls: 'scribe-tool-use' });
+    const el = this.messagesContainer.createDiv({ cls: 'anthracite-tool-use' });
     const summary = Object.values(input).join(', ');
     el.setText(`Using ${toolName}: ${summary}`);
     this.scrollToBottom();
   }
 
   private renderToolResult(toolName: string, result: string): void {
-    const el = this.messagesContainer.createDiv({ cls: 'scribe-tool-result' });
+    const el = this.messagesContainer.createDiv({ cls: 'anthracite-tool-result' });
     const truncated = result.length > 200 ? result.slice(0, 200) + '...' : result;
     el.setText(`${toolName} result: ${truncated}`);
     this.scrollToBottom();
@@ -296,24 +296,24 @@ export class ChatView extends ItemView {
 
   private createAssistantBubble(): HTMLElement {
     return this.messagesContainer.createDiv({
-      cls: 'scribe-message scribe-message-assistant',
+      cls: 'anthracite-message anthracite-message-assistant',
     });
   }
 
   private createThinkingBlock(): HTMLElement {
-    const wrapper = this.messagesContainer.createDiv({ cls: 'scribe-thinking-block' });
-    const toggle = wrapper.createDiv({ cls: 'scribe-thinking-toggle' });
+    const wrapper = this.messagesContainer.createDiv({ cls: 'anthracite-thinking-block' });
+    const toggle = wrapper.createDiv({ cls: 'anthracite-thinking-toggle' });
     toggle.setText('Claude\'s Thinking');
     toggle.addEventListener('click', () => {
-      wrapper.toggleClass('scribe-thinking-expanded', !wrapper.hasClass('scribe-thinking-expanded'));
+      wrapper.toggleClass('anthracite-thinking-expanded', !wrapper.hasClass('anthracite-thinking-expanded'));
     });
-    wrapper.createDiv({ cls: 'scribe-thinking-content' });
+    wrapper.createDiv({ cls: 'anthracite-thinking-content' });
     return wrapper;
   }
 
   private addErrorMessage(text: string): void {
     const el = this.messagesContainer.createDiv({
-      cls: 'scribe-message scribe-message-assistant',
+      cls: 'anthracite-message anthracite-message-assistant',
     });
     el.style.color = 'var(--text-error)';
     el.setText(text);
@@ -383,13 +383,13 @@ export class ChatView extends ItemView {
 
   private showImagePreview(filename: string): void {
     // Show a small indicator near the input
-    const existing = this.containerEl.querySelector('.scribe-image-previews');
-    const container = existing ?? this.containerEl.querySelector('.scribe-input-area')?.createDiv({ cls: 'scribe-image-previews' });
+    const existing = this.containerEl.querySelector('.anthracite-image-previews');
+    const container = existing ?? this.containerEl.querySelector('.anthracite-input-area')?.createDiv({ cls: 'anthracite-image-previews' });
     if (!container) return;
 
-    const chip = (container as HTMLElement).createDiv({ cls: 'scribe-image-chip' });
+    const chip = (container as HTMLElement).createDiv({ cls: 'anthracite-image-chip' });
     chip.setText(filename);
-    const removeBtn = chip.createEl('span', { cls: 'scribe-image-chip-remove', text: ' x' });
+    const removeBtn = chip.createEl('span', { cls: 'anthracite-image-chip-remove', text: ' x' });
     removeBtn.addEventListener('click', () => {
       const idx = Array.from(container.children).indexOf(chip);
       if (idx >= 0) this.pendingImages.splice(idx, 1);

@@ -1,5 +1,5 @@
 import { App, Notice, PluginSettingTab, SecretComponent, Setting, requestUrl } from 'obsidian';
-import type ScribePlugin from './main';
+import type AnthracitePlugin from './main';
 
 export interface ClaudeModel {
   id: string;
@@ -14,7 +14,7 @@ export const CLAUDE_MODELS: ClaudeModel[] = [
   { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', supportsThinking: true, supportsVision: true },
 ];
 
-export interface ScribeSettings {
+export interface AnthraciteSettings {
   apiKeySecretName: string;
   modelId: string;
   extendedThinking: boolean;
@@ -24,20 +24,20 @@ export interface ScribeSettings {
   systemPromptPath: string;
 }
 
-export const DEFAULT_SETTINGS: ScribeSettings = {
+export const DEFAULT_SETTINGS: AnthraciteSettings = {
   apiKeySecretName: '',
   modelId: 'claude-sonnet-4-20250514',
   extendedThinking: false,
   agentMode: false,
-  historyFolder: 'Scribe/History',
+  historyFolder: 'Anthracite/History',
   maxToolCalls: 25,
   systemPromptPath: '',
 };
 
-const MIGRATION_SECRET_NAME = 'scribe-api-key';
-const LEGACY_STORAGE_KEY = 'obsidian-scribe-api-key';
+const MIGRATION_SECRET_NAME = 'anthracite-api-key';
+const LEGACY_STORAGE_KEY = 'obsidian-scribe-api-key'; // Keep old key name for migration
 
-export async function migrateApiKeyToSecretStorage(plugin: ScribePlugin): Promise<void> {
+export async function migrateApiKeyToSecretStorage(plugin: AnthracitePlugin): Promise<void> {
   if (plugin.settings.apiKeySecretName) return;
 
   const legacyKey = await plugin.app.loadLocalStorage(LEGACY_STORAGE_KEY);
@@ -50,16 +50,16 @@ export async function migrateApiKeyToSecretStorage(plugin: ScribePlugin): Promis
     plugin.settings.apiKeySecretName = MIGRATION_SECRET_NAME;
     await plugin.saveSettings();
     await plugin.app.saveLocalStorage(LEGACY_STORAGE_KEY, null);
-    console.log('[Obsidian Scribe] API key migrated to secure storage');
+    console.log('[Anthracite] API key migrated to secure storage');
   } else {
-    console.error('[Obsidian Scribe] API key migration verification failed');
+    console.error('[Anthracite] API key migration verification failed');
   }
 }
 
-export class ScribeSettingTab extends PluginSettingTab {
-  plugin: ScribePlugin;
+export class AnthraciteSettingTab extends PluginSettingTab {
+  plugin: AnthracitePlugin;
 
-  constructor(app: App, plugin: ScribePlugin) {
+  constructor(app: App, plugin: AnthracitePlugin) {
     super(app, plugin);
     this.plugin = plugin;
   }
@@ -68,7 +68,7 @@ export class ScribeSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl('h2', { text: 'Obsidian Scribe Settings' });
+    containerEl.createEl('h2', { text: 'Anthracite Settings' });
 
     new Setting(containerEl)
       .setName('Claude API Key')
@@ -146,11 +146,11 @@ export class ScribeSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName('System Prompt')
       .setDesc(
-        'Path to a vault note to use as your system prompt (e.g. Scribe/system-prompt). Leave empty for the default prompt. The note content replaces the built-in instructions.'
+        'Path to a vault note to use as your system prompt (e.g. Anthracite/system-prompt). Leave empty for the default prompt. The note content replaces the built-in instructions.'
       )
       .addText((text) =>
         text
-          .setPlaceholder('e.g. Scribe/system-prompt')
+          .setPlaceholder('e.g. Anthracite/system-prompt')
           .setValue(this.plugin.settings.systemPromptPath)
           .onChange(async (value) => {
             this.plugin.settings.systemPromptPath = value.trim();
@@ -163,10 +163,10 @@ export class ScribeSettingTab extends PluginSettingTab {
       .setDesc('Where to save chat conversations as Markdown files.')
       .addText((text) =>
         text
-          .setPlaceholder('Scribe/History')
+          .setPlaceholder('Anthracite/History')
           .setValue(this.plugin.settings.historyFolder)
           .onChange(async (value) => {
-            this.plugin.settings.historyFolder = value || 'Scribe/History';
+            this.plugin.settings.historyFolder = value || 'Anthracite/History';
             await this.plugin.saveSettings();
           })
       );

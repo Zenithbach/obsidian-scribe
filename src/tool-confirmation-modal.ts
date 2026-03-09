@@ -35,27 +35,27 @@ export class ToolConfirmationModal extends Modal {
   onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.addClass('scribe-confirm-modal');
+    contentEl.addClass('anthracite-confirm-modal');
 
-    contentEl.createEl('h3', { text: 'Scribe wants to modify your vault' });
+    contentEl.createEl('h3', { text: 'Anthracite wants to modify your vault' });
 
-    const infoEl = contentEl.createDiv({ cls: 'scribe-confirm-info' });
+    const infoEl = contentEl.createDiv({ cls: 'anthracite-confirm-info' });
     infoEl.createEl('div', {
-      cls: 'scribe-confirm-tool',
+      cls: 'anthracite-confirm-tool',
       text: this.request.description,
     });
     infoEl.createEl('div', {
-      cls: 'scribe-confirm-path',
+      cls: 'anthracite-confirm-path',
       text: this.request.filePath,
     });
 
     // Preview of what will happen
-    const previewEl = contentEl.createDiv({ cls: 'scribe-confirm-preview' });
+    const previewEl = contentEl.createDiv({ cls: 'anthracite-confirm-preview' });
     previewEl.createEl('div', {
-      cls: 'scribe-confirm-preview-label',
+      cls: 'anthracite-confirm-preview-label',
       text: 'Preview:',
     });
-    const previewContent = previewEl.createEl('pre', { cls: 'scribe-confirm-preview-content' });
+    const previewContent = previewEl.createEl('pre', { cls: 'anthracite-confirm-preview-content' });
     const truncated =
       this.request.preview.length > 1000
         ? this.request.preview.slice(0, 1000) + '\n\n[truncated]'
@@ -73,7 +73,7 @@ export class ToolConfirmationModal extends Modal {
       );
 
     // Buttons
-    const buttonRow = contentEl.createDiv({ cls: 'scribe-confirm-buttons' });
+    const buttonRow = contentEl.createDiv({ cls: 'anthracite-confirm-buttons' });
 
     const denyBtn = buttonRow.createEl('button', { text: 'Deny' });
     denyBtn.addEventListener('click', () => {
