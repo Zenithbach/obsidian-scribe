@@ -23,6 +23,7 @@ export class ChatView extends ItemView {
   private chatHistory: ChatHistory;
   private currentThinking: string = '';
   private currentToolCalls: { name: string; input: Record<string, unknown>; result: string }[] = [];
+  private thinkingAutoCollapsed = false;
 
   constructor(leaf: WorkspaceLeaf, plugin: ScribePlugin) {
     super(leaf);
@@ -143,6 +144,7 @@ export class ChatView extends ItemView {
     // Reset per-message metadata collectors
     this.currentThinking = '';
     this.currentToolCalls = [];
+    this.thinkingAutoCollapsed = false;
 
     // Clear input and pending images
     this.pendingImages = [];
@@ -166,13 +168,15 @@ export class ChatView extends ItemView {
 
     const noteContext = this.contextBuilder.formatForPrompt(context);
 
+    // Create thinking block FIRST (above response) if enabled
+    if (this.plugin.settings.extendedThinking) {
+      this.thinkingContainer = this.createThinkingBlock();
+      this.thinkingContainer.addClass('scribe-thinking-expanded'); // Start expanded
+    }
+
     const assistantEl = this.createAssistantBubble();
     this.isStreaming = true;
     this.sendButton.disabled = true;
-
-    if (this.plugin.settings.extendedThinking) {
-      this.thinkingContainer = this.createThinkingBlock();
-    }
 
     const executor = this.plugin.settings.agentMode ? this.toolExecutor : undefined;
 
@@ -181,6 +185,11 @@ export class ChatView extends ItemView {
       noteContext || null,
       {
         onText: (text) => {
+          // Auto-collapse thinking when response text starts arriving
+          if (!this.thinkingAutoCollapsed && this.thinkingContainer) {
+            this.thinkingContainer.removeClass('scribe-thinking-expanded');
+            this.thinkingAutoCollapsed = true;
+          }
           assistantEl.empty();
           MarkdownRenderer.render(this.app, text, assistantEl, '', this.plugin);
           assistantEl.addClass('scribe-streaming-cursor');
@@ -272,7 +281,7 @@ export class ChatView extends ItemView {
   private createThinkingBlock(): HTMLElement {
     const wrapper = this.messagesContainer.createDiv({ cls: 'scribe-thinking-block' });
     const toggle = wrapper.createDiv({ cls: 'scribe-thinking-toggle' });
-    toggle.setText('Thinking...');
+    toggle.setText('Claude\'s Thinking');
     toggle.addEventListener('click', () => {
       wrapper.toggleClass('scribe-thinking-expanded', !wrapper.hasClass('scribe-thinking-expanded'));
     });
@@ -295,6 +304,7 @@ export class ChatView extends ItemView {
     this.pendingImages = [];
     this.messagesContainer.empty();
     this.thinkingContainer = null;
+    this.thinkingAutoCollapsed = false;
     this.isStreaming = false;
     this.sendButton.disabled = false;
     this.updateContextBanner();
