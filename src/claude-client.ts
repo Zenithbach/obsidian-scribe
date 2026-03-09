@@ -37,7 +37,8 @@ export class ClaudeClient {
     noteContext: string | null,
     callbacks: StreamCallbacks,
     useThinking = false,
-    toolExecutor?: VaultToolExecutor
+    toolExecutor?: VaultToolExecutor,
+    maxToolCalls = 25
   ): Promise<void> {
     this.abortController = new AbortController();
 
@@ -46,7 +47,7 @@ export class ClaudeClient {
       : 'You are a helpful AI assistant integrated into Obsidian, a note-taking application. Be concise and helpful.\n\nWhen editing files, always respect YAML frontmatter blocks (--- delimited) at the top of notes.';
 
     try {
-      await this.runToolLoop(messages, systemPrompt, callbacks, useThinking, toolExecutor);
+      await this.runToolLoop(messages, systemPrompt, callbacks, useThinking, toolExecutor, maxToolCalls);
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'AbortError') return;
       callbacks.onError(error instanceof Error ? error : new Error(String(error)));

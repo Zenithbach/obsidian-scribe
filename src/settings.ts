@@ -6,6 +6,7 @@ export interface ScribeSettings {
   extendedThinking: boolean;
   agentMode: boolean;
   historyFolder: string;
+  maxToolCalls: number;
 }
 
 export const DEFAULT_SETTINGS: ScribeSettings = {
@@ -13,6 +14,7 @@ export const DEFAULT_SETTINGS: ScribeSettings = {
   extendedThinking: false,
   agentMode: false,
   historyFolder: 'Scribe/History',
+  maxToolCalls: 25,
 };
 
 const MIGRATION_SECRET_NAME = 'scribe-api-key';
@@ -139,5 +141,21 @@ export class ScribeSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         });
       });
+
+    new Setting(containerEl)
+      .setName('Max Tool Calls')
+      .setDesc(
+        'Maximum number of tool call iterations per message in Agent Mode. Increase for complex tasks like vault reorganization.'
+      )
+      .addSlider((slider) =>
+        slider
+          .setLimits(5, 50, 5)
+          .setValue(this.plugin.settings.maxToolCalls)
+          .setDynamicTooltip()
+          .onChange(async (value) => {
+            this.plugin.settings.maxToolCalls = value;
+            await this.plugin.saveSettings();
+          })
+      );
   }
 }

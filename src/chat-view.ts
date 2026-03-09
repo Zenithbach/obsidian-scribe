@@ -228,7 +228,8 @@ export class ChatView extends ItemView {
         },
       },
       this.plugin.settings.extendedThinking,
-      executor
+      executor,
+      this.plugin.settings.maxToolCalls
     );
   }
 
