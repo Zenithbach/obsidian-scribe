@@ -1,4 +1,4 @@
-import { Plugin } from 'obsidian';
+import { Notice, Plugin } from 'obsidian';
 import { ScribeSettings, DEFAULT_SETTINGS, ScribeSettingTab, migrateApiKeyToSecretStorage } from './settings';
 import { ChatView, CHAT_VIEW_TYPE } from './chat-view';
 
@@ -44,6 +44,26 @@ export default class ScribePlugin extends Plugin {
             view.sendPrefilled('Please summarize this note concisely.');
           }
         }, 200);
+      },
+    });
+
+    this.addCommand({
+      id: 'browse-history',
+      name: 'Browse chat history',
+      callback: async () => {
+        const folder = this.settings.historyFolder;
+        const abstractFile = this.app.vault.getAbstractFileByPath(folder);
+        if (abstractFile) {
+          // Reveal the folder in the file explorer
+          const fileExplorer = this.app.workspace.getLeavesOfType('file-explorer')[0];
+          if (fileExplorer) {
+            this.app.workspace.revealLeaf(fileExplorer);
+            // @ts-ignore - internal API to reveal folder in explorer
+            fileExplorer.view.revealInFolder?.(abstractFile);
+          }
+        } else {
+          new Notice(`No chat history found. Start a chat first! (Looking in: ${folder})`);
+        }
       },
     });
 

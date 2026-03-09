@@ -1,4 +1,4 @@
-import { ItemView, MarkdownRenderer, WorkspaceLeaf, setIcon } from 'obsidian';
+import { ItemView, MarkdownRenderer, Notice, WorkspaceLeaf, setIcon } from 'obsidian';
 import type ScribePlugin from './main';
 import { ChatMessage, ClaudeClient, ImageAttachment } from './claude-client';
 import { ContextBuilder } from './context-builder';
@@ -61,6 +61,13 @@ export class ChatView extends ItemView {
     });
     setIcon(newChatBtn, 'plus');
     newChatBtn.addEventListener('click', () => this.clearChat());
+
+    const splitChatBtn = header.createEl('button', {
+      cls: 'scribe-new-chat-button clickable-icon',
+      attr: { 'aria-label': 'Split chat (new topic)' },
+    });
+    setIcon(splitChatBtn, 'scissors');
+    splitChatBtn.addEventListener('click', () => this.splitChat());
 
     this.messagesContainer = container.createDiv({ cls: 'scribe-messages' });
 
@@ -139,6 +146,13 @@ export class ChatView extends ItemView {
     if (!this.chatHistory.getCurrentFilePath()) {
       await this.chatHistory.startSession(activeFile?.basename);
     }
+
+    // Show chat title in header
+    const chatFile = this.chatHistory.getCurrentFilePath();
+    if (chatFile) {
+      this.contextBanner.setText(`Chat: ${activeFile?.basename || 'General Chat'}`);
+    }
+
     await this.chatHistory.appendUserMessage(text);
 
     // Reset per-message metadata collectors
@@ -312,6 +326,14 @@ export class ChatView extends ItemView {
 
     // Start fresh history for next chat
     this.chatHistory = new ChatHistory(this.plugin.app, this.plugin.settings.historyFolder);
+  }
+
+  private async splitChat(): Promise<void> {
+    const activeFile = this.app.workspace.getActiveFile();
+    const contextName = activeFile?.basename || 'General Chat';
+    await this.chatHistory.startSession(contextName);
+    this.contextBanner.setText(`Chat: ${contextName} (continued)`);
+    new Notice('Chat split — new messages will save to a new file.');
   }
 
   private handleFileDrop(e: DragEvent): void {
