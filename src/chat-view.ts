@@ -1,6 +1,7 @@
 import { ItemView, MarkdownRenderer, Notice, WorkspaceLeaf, setIcon } from 'obsidian';
 import type ScribePlugin from './main';
 import { ChatMessage, ClaudeClient, ImageAttachment } from './claude-client';
+import { CLAUDE_MODELS } from './settings';
 import { ContextBuilder } from './context-builder';
 import { VaultToolExecutor } from './vault-tools';
 import { ChatHistory } from './chat-history';
@@ -29,7 +30,7 @@ export class ChatView extends ItemView {
     super(leaf);
     this.plugin = plugin;
     this.contextBuilder = new ContextBuilder(plugin.app);
-    this.toolExecutor = new VaultToolExecutor(plugin.app);
+    this.toolExecutor = new VaultToolExecutor(plugin.app, [plugin.settings.historyFolder]);
     this.chatHistory = new ChatHistory(plugin.app, plugin.settings.historyFolder);
   }
 
@@ -119,10 +120,12 @@ export class ChatView extends ItemView {
 
   private updateContextBanner(): void {
     const file = this.app.workspace.getActiveFile();
+    const model = CLAUDE_MODELS.find((m) => m.id === this.plugin.settings.modelId);
+    const modelTag = model ? ` | ${model.name}` : '';
     const mode = this.plugin.settings.agentMode ? ' | Agent' : '';
     const thinking = this.plugin.settings.extendedThinking ? ' | Thinking' : '';
     this.contextBanner.setText(
-      file ? `Context: ${file.basename}${mode}${thinking}` : `No note selected${mode}${thinking}`
+      file ? `${file.basename}${modelTag}${mode}${thinking}` : `No note${modelTag}${mode}${thinking}`
     );
   }
 
@@ -194,6 +197,9 @@ export class ChatView extends ItemView {
 
     const executor = this.plugin.settings.agentMode ? this.toolExecutor : undefined;
 
+    // Load custom system prompt from vault note if configured
+    const customPrompt = await this.loadCustomSystemPrompt();
+
     await this.client.streamChat(
       this.messages,
       noteContext || null,
@@ -252,7 +258,9 @@ export class ChatView extends ItemView {
       },
       this.plugin.settings.extendedThinking,
       executor,
-      this.plugin.settings.maxToolCalls
+      this.plugin.settings.maxToolCalls,
+      this.plugin.settings.modelId,
+      customPrompt
     );
   }
 
@@ -324,8 +332,9 @@ export class ChatView extends ItemView {
     this.updateContextBanner();
     this.textarea.focus();
 
-    // Start fresh history for next chat
+    // Start fresh history and reset tool trust for next chat
     this.chatHistory = new ChatHistory(this.plugin.app, this.plugin.settings.historyFolder);
+    this.toolExecutor.resetTrust();
   }
 
   private async splitChat(): Promise<void> {
@@ -387,6 +396,23 @@ export class ChatView extends ItemView {
       chip.remove();
       if (container.children.length === 0) container.remove();
     });
+  }
+
+  private async loadCustomSystemPrompt(): Promise<string | undefined> {
+    const path = this.plugin.settings.systemPromptPath;
+    if (!path) return undefined;
+
+    // Try with and without .md extension
+    const tryPaths = path.endsWith('.md') ? [path] : [`${path}.md`, path];
+    for (const p of tryPaths) {
+      const file = this.app.vault.getAbstractFileByPath(p);
+      if (file && 'extension' in file) {
+        const content = await this.app.vault.read(file as import('obsidian').TFile);
+        if (content.trim()) return content.trim();
+      }
+    }
+
+    return undefined;
   }
 
   sendPrefilled(text: string): void {

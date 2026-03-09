@@ -1,5 +1,6 @@
 import { App, TFile, TFolder } from 'obsidian';
 import Anthropic from '@anthropic-ai/sdk';
+import { ToolConfirmationModal, ToolConfirmationRequest } from './tool-confirmation-modal';
 
 // Tool definitions for Claude's tool_use
 export const VAULT_TOOLS: Anthropic.Tool[] = [
@@ -95,6 +96,9 @@ export const VAULT_TOOLS: Anthropic.Tool[] = [
   },
 ];
 
+// Tools that modify the vault and require user confirmation
+const WRITE_TOOLS = new Set(['create_note', 'edit_note']);
+
 interface ToolResult {
   content: string;
   isError?: boolean;
@@ -102,11 +106,17 @@ interface ToolResult {
 
 export class VaultToolExecutor {
   private app: App;
-  private stateFolder: string;
+  private protectedPaths: string[];
+  private sessionTrusted = false;
 
-  constructor(app: App, stateFolder = 'gemini-scribe') {
+  constructor(app: App, protectedPaths: string[] = []) {
     this.app = app;
-    this.stateFolder = stateFolder;
+    this.protectedPaths = protectedPaths;
+  }
+
+  /** Reset session trust (call when starting a new chat). */
+  resetTrust(): void {
+    this.sessionTrusted = false;
   }
 
   async execute(
@@ -114,6 +124,15 @@ export class VaultToolExecutor {
     input: Record<string, unknown>
   ): Promise<ToolResult> {
     try {
+      // Gate write operations behind confirmation modal
+      if (WRITE_TOOLS.has(toolName) && !this.sessionTrusted) {
+        const request = this.buildConfirmationRequest(toolName, input);
+        const allowed = await this.requestConfirmation(request);
+        if (!allowed) {
+          return { content: 'User denied this operation.', isError: true };
+        }
+      }
+
       switch (toolName) {
         case 'read_note':
           return await this.readNote(input.path as string);
@@ -138,7 +157,11 @@ export class VaultToolExecutor {
   }
 
   private isProtectedPath(path: string): boolean {
-    return path.startsWith('.obsidian/') || path.startsWith(this.stateFolder + '/');
+    if (path.startsWith('.obsidian/') || path.startsWith('.obsidian\\')) return true;
+    for (const protected_ of this.protectedPaths) {
+      if (protected_ && path.startsWith(protected_ + '/')) return true;
+    }
+    return false;
   }
 
   private normalizePath(path: string): string {
@@ -147,8 +170,51 @@ export class VaultToolExecutor {
     return p;
   }
 
+  private buildConfirmationRequest(
+    toolName: string,
+    input: Record<string, unknown>
+  ): ToolConfirmationRequest {
+    const path = (input.path as string) || 'unknown';
+    const content = (input.content as string) || '';
+    const mode = (input.mode as string) || 'append';
+
+    if (toolName === 'create_note') {
+      return {
+        toolName,
+        description: 'Create a new note',
+        filePath: path,
+        preview: content,
+      };
+    }
+
+    // edit_note
+    return {
+      toolName,
+      description: `Edit note (${mode})`,
+      filePath: path,
+      preview: content,
+    };
+  }
+
+  private requestConfirmation(request: ToolConfirmationRequest): Promise<boolean> {
+    return new Promise((resolve) => {
+      new ToolConfirmationModal(
+        this.app,
+        request,
+        resolve,
+        this.sessionTrusted,
+        (trust) => {
+          this.sessionTrusted = trust;
+        }
+      ).open();
+    });
+  }
+
   private async readNote(path: string): Promise<ToolResult> {
     const normalized = this.normalizePath(path);
+    if (this.isProtectedPath(normalized)) {
+      return { content: 'Cannot read notes in protected folders.', isError: true };
+    }
     const file = this.app.vault.getAbstractFileByPath(normalized);
     if (!(file instanceof TFile)) {
       return { content: `Note not found: ${normalized}`, isError: true };

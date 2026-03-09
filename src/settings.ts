@@ -1,20 +1,37 @@
 import { App, Notice, PluginSettingTab, SecretComponent, Setting, requestUrl } from 'obsidian';
 import type ScribePlugin from './main';
 
+export interface ClaudeModel {
+  id: string;
+  name: string;
+  supportsThinking: boolean;
+  supportsVision: boolean;
+}
+
+export const CLAUDE_MODELS: ClaudeModel[] = [
+  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', supportsThinking: true, supportsVision: true },
+  { id: 'claude-haiku-4-20250414', name: 'Claude Haiku 4', supportsThinking: false, supportsVision: true },
+  { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', supportsThinking: true, supportsVision: true },
+];
+
 export interface ScribeSettings {
   apiKeySecretName: string;
+  modelId: string;
   extendedThinking: boolean;
   agentMode: boolean;
   historyFolder: string;
   maxToolCalls: number;
+  systemPromptPath: string;
 }
 
 export const DEFAULT_SETTINGS: ScribeSettings = {
   apiKeySecretName: '',
+  modelId: 'claude-sonnet-4-20250514',
   extendedThinking: false,
   agentMode: false,
   historyFolder: 'Scribe/History',
   maxToolCalls: 25,
+  systemPromptPath: '',
 };
 
 const MIGRATION_SECRET_NAME = 'scribe-api-key';
@@ -106,6 +123,42 @@ export class ScribeSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName('Model')
+      .setDesc('Which Claude model to use for chat. Opus is most capable but slower and costs more. Haiku is fastest and cheapest.')
+      .addDropdown((dropdown) => {
+        for (const model of CLAUDE_MODELS) {
+          dropdown.addOption(model.id, model.name);
+        }
+        dropdown.setValue(this.plugin.settings.modelId);
+        dropdown.onChange(async (value) => {
+          this.plugin.settings.modelId = value;
+          // Auto-disable thinking if model doesn't support it
+          const selected = CLAUDE_MODELS.find((m) => m.id === value);
+          if (selected && !selected.supportsThinking && this.plugin.settings.extendedThinking) {
+            this.plugin.settings.extendedThinking = false;
+            new Notice(`Extended thinking disabled — ${selected.name} doesn't support it.`);
+          }
+          await this.plugin.saveSettings();
+          this.display(); // Refresh to update thinking toggle state
+        });
+      });
+
+    new Setting(containerEl)
+      .setName('System Prompt')
+      .setDesc(
+        'Path to a vault note to use as your system prompt (e.g. Scribe/system-prompt). Leave empty for the default prompt. The note content replaces the built-in instructions.'
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder('e.g. Scribe/system-prompt')
+          .setValue(this.plugin.settings.systemPromptPath)
+          .onChange(async (value) => {
+            this.plugin.settings.systemPromptPath = value.trim();
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
       .setName('Chat History Folder')
       .setDesc('Where to save chat conversations as Markdown files.')
       .addText((text) =>
@@ -118,16 +171,24 @@ export class ScribeSettingTab extends PluginSettingTab {
           })
       );
 
+    const selectedModel = CLAUDE_MODELS.find((m) => m.id === this.plugin.settings.modelId);
+    const thinkingSupported = selectedModel?.supportsThinking ?? false;
+
     new Setting(containerEl)
       .setName('Extended Thinking')
       .setDesc(
-        'Enable extended thinking for deeper analysis. Claude will show its reasoning process in a collapsible block. Uses more tokens.'
+        thinkingSupported
+          ? 'Enable extended thinking for deeper analysis. Claude will show its reasoning process in a collapsible block. Uses more tokens.'
+          : `Extended thinking is not available with ${selectedModel?.name || 'this model'}.`
       )
       .addToggle((toggle) => {
-        toggle.setValue(this.plugin.settings.extendedThinking).onChange(async (value) => {
-          this.plugin.settings.extendedThinking = value;
-          await this.plugin.saveSettings();
-        });
+        toggle
+          .setValue(thinkingSupported && this.plugin.settings.extendedThinking)
+          .setDisabled(!thinkingSupported)
+          .onChange(async (value) => {
+            this.plugin.settings.extendedThinking = value;
+            await this.plugin.saveSettings();
+          });
       });
 
     new Setting(containerEl)

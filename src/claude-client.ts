@@ -28,6 +28,8 @@ export class ClaudeClient {
   constructor(apiKey: string) {
     this.client = new Anthropic({
       apiKey,
+      // Safe in Obsidian (Electron desktop app) — the API key is never exposed
+      // to a public web context. Required because the SDK detects a browser-like env.
       dangerouslyAllowBrowser: true,
     });
   }
@@ -38,16 +40,21 @@ export class ClaudeClient {
     callbacks: StreamCallbacks,
     useThinking = false,
     toolExecutor?: VaultToolExecutor,
-    maxToolCalls = 25
+    maxToolCalls = 25,
+    modelId = 'claude-sonnet-4-20250514',
+    customSystemPrompt?: string
   ): Promise<void> {
     this.abortController = new AbortController();
 
+    const basePrompt = customSystemPrompt
+      || 'You are a helpful AI assistant integrated into Obsidian, a note-taking application. Be concise and helpful.\n\nWhen editing files, always respect YAML frontmatter blocks (--- delimited) at the top of notes.';
+
     const systemPrompt = noteContext
-      ? `You are a helpful AI assistant integrated into Obsidian, a note-taking application. The user has the following notes in their vault that may be relevant:\n\n${noteContext}\n\nUse this context to inform your responses when relevant. Be concise and helpful. When referencing information from their notes, mention which note it came from.\n\nWhen editing files, always respect YAML frontmatter blocks (--- delimited) at the top of notes.`
-      : 'You are a helpful AI assistant integrated into Obsidian, a note-taking application. Be concise and helpful.\n\nWhen editing files, always respect YAML frontmatter blocks (--- delimited) at the top of notes.';
+      ? `${basePrompt}\n\nThe user has the following notes in their vault that may be relevant:\n\n${noteContext}\n\nUse this context to inform your responses when relevant. When referencing information from their notes, mention which note it came from.`
+      : basePrompt;
 
     try {
-      await this.runToolLoop(messages, systemPrompt, callbacks, useThinking, toolExecutor, maxToolCalls);
+      await this.runToolLoop(messages, systemPrompt, callbacks, useThinking, toolExecutor, maxToolCalls, modelId);
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'AbortError') return;
       callbacks.onError(error instanceof Error ? error : new Error(String(error)));
@@ -62,7 +69,8 @@ export class ClaudeClient {
     callbacks: StreamCallbacks,
     useThinking: boolean,
     toolExecutor?: VaultToolExecutor,
-    maxLoops = 10
+    maxLoops = 10,
+    modelId = 'claude-sonnet-4-20250514'
   ): Promise<void> {
     const apiMessages: Anthropic.MessageParam[] = messages.map((m) => {
       if (m.images && m.images.length > 0) {
@@ -88,7 +96,7 @@ export class ClaudeClient {
       loopCount++;
 
       const params: Anthropic.MessageCreateParams = {
-        model: 'claude-sonnet-4-20250514',
+        model: modelId,
         max_tokens: useThinking ? 16000 : 4096,
         system: systemPrompt,
         messages: apiMessages,
