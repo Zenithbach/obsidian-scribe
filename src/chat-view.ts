@@ -1,4 +1,4 @@
-import { ItemView, MarkdownRenderer, Notice, WorkspaceLeaf, setIcon } from 'obsidian';
+import { ItemView, MarkdownRenderer, Notice, TFile, WorkspaceLeaf, setIcon } from 'obsidian';
 import type AnthracitePlugin from './main';
 import { ChatMessage, ClaudeClient, ImageAttachment, TokenUsage } from './claude-client';
 import { CLAUDE_MODELS } from './settings';
@@ -308,7 +308,13 @@ export class ChatView extends ItemView {
       MarkdownRenderer.render(this.app, msg.content, el, '', this.plugin);
     } else {
       if (msg.images && msg.images.length > 0) {
-        el.createDiv({ cls: 'anthracite-image-indicator', text: `[${msg.images.length} image${msg.images.length > 1 ? 's' : ''} attached]` });
+        const gallery = el.createDiv({ cls: 'anthracite-message-images' });
+        for (const img of msg.images) {
+          gallery.createEl('img', {
+            cls: 'anthracite-message-image',
+            attr: { src: `data:${img.mediaType};base64,${img.base64}` },
+          });
+        }
       }
       el.createSpan({ text: msg.content });
     }
@@ -471,11 +477,43 @@ export class ChatView extends ItemView {
   }
 
   private handleFileDrop(e: DragEvent): void {
+    // Check for Obsidian internal file drag (from file explorer)
+    const internalPath = e.dataTransfer?.getData('text/plain');
+    if (internalPath && !e.dataTransfer?.files.length) {
+      this.processVaultImage(internalPath);
+      return;
+    }
+
     const files = e.dataTransfer?.files;
     if (!files) return;
     for (let i = 0; i < files.length; i++) {
       this.processImageFile(files[i]);
     }
+  }
+
+  private async processVaultImage(path: string): Promise<void> {
+    const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    const ext = path.split('.').pop()?.toLowerCase();
+    if (!ext || !validExtensions.includes(ext)) {
+      this.addErrorMessage(`Unsupported file type: .${ext || '?'}. Use JPEG, PNG, GIF, or WebP images.`);
+      return;
+    }
+
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) {
+      this.addErrorMessage(`File not found in vault: ${path}`);
+      return;
+    }
+
+    const buffer = await this.app.vault.readBinary(file);
+    const base64 = arrayBufferToBase64(buffer);
+    const mimeMap: Record<string, string> = {
+      jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+      gif: 'image/gif', webp: 'image/webp',
+    };
+    const mediaType = mimeMap[ext];
+    this.pendingImages.push({ base64, mediaType });
+    this.showImagePreview(file.name, base64, mediaType);
   }
 
   private handlePaste(e: ClipboardEvent): void {
@@ -501,20 +539,24 @@ export class ChatView extends ItemView {
     reader.onload = () => {
       const base64 = (reader.result as string).split(',')[1];
       this.pendingImages.push({ base64, mediaType: file.type });
-      this.showImagePreview(file.name);
+      this.showImagePreview(file.name, base64, file.type);
     };
     reader.readAsDataURL(file);
   }
 
-  private showImagePreview(filename: string): void {
-    // Show a small indicator near the input
+  private showImagePreview(filename: string, base64: string, mediaType: string): void {
     const existing = this.containerEl.querySelector('.anthracite-image-previews');
     const container = existing ?? this.containerEl.querySelector('.anthracite-input-area')?.createDiv({ cls: 'anthracite-image-previews' });
     if (!container) return;
 
     const chip = (container as HTMLElement).createDiv({ cls: 'anthracite-image-chip' });
-    chip.setText(filename);
-    const removeBtn = chip.createEl('span', { cls: 'anthracite-image-chip-remove', text: ' x' });
+    const thumb = chip.createEl('img', {
+      cls: 'anthracite-image-thumb',
+      attr: { src: `data:${mediaType};base64,${base64}`, alt: filename },
+    });
+    chip.createSpan({ cls: 'anthracite-image-chip-name', text: filename });
+    const removeBtn = chip.createSpan({ cls: 'anthracite-image-chip-remove' });
+    setIcon(removeBtn, 'x');
     removeBtn.addEventListener('click', () => {
       const idx = Array.from(container.children).indexOf(chip);
       if (idx >= 0) this.pendingImages.splice(idx, 1);
@@ -585,4 +627,13 @@ export class ChatView extends ItemView {
   async onClose(): Promise<void> {
     this.client?.abort();
   }
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
 }
