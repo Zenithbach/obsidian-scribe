@@ -1,6 +1,10 @@
-# Anthracite
+<p align="center">
+  <img src="logo.png" alt="Anthracite" width="128">
+</p>
 
-A Claude-native AI assistant for [Obsidian](https://obsidian.md) — chat, think, and edit your vault with Claude.
+<h1 align="center">Anthracite</h1>
+
+<p align="center">A Claude-native AI assistant for <a href="https://obsidian.md">Obsidian</a> — chat, think, and edit your vault with Claude.</p>
 
 ## Features
 
