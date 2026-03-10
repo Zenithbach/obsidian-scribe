@@ -80,14 +80,26 @@ export class ClaudeClient {
   ): Promise<void> {
     const apiMessages: Anthropic.MessageParam[] = messages.map((m) => {
       if (m.images && m.images.length > 0) {
-        const content: Anthropic.ContentBlockParam[] = m.images.map((img) => ({
-          type: 'image' as const,
-          source: {
-            type: 'base64' as const,
-            media_type: img.mediaType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
-            data: img.base64,
-          },
-        }));
+        const content: Anthropic.ContentBlockParam[] = m.images.map((img) => {
+          if (img.mediaType === 'application/pdf') {
+            return {
+              type: 'document' as const,
+              source: {
+                type: 'base64' as const,
+                media_type: 'application/pdf' as const,
+                data: img.base64,
+              },
+            };
+          }
+          return {
+            type: 'image' as const,
+            source: {
+              type: 'base64' as const,
+              media_type: img.mediaType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+              data: img.base64,
+            },
+          };
+        });
         content.push({ type: 'text' as const, text: m.content });
         return { role: m.role, content };
       }

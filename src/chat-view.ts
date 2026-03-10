@@ -272,7 +272,8 @@ export class ChatView extends ItemView {
           this.thinkingContainer = null;
           this.textarea.focus();
 
-          // Add copy action to the streamed message
+          // Add copy buttons to code blocks and message actions
+          this.addCodeCopyButtons(assistantEl);
           this.addMessageActions(messageGroup, fullText);
 
           // Auto-save assistant message with metadata
@@ -306,14 +307,22 @@ export class ChatView extends ItemView {
 
     if (msg.role === 'assistant') {
       MarkdownRenderer.render(this.app, msg.content, el, '', this.plugin);
+      this.addCodeCopyButtons(el);
     } else {
       if (msg.images && msg.images.length > 0) {
         const gallery = el.createDiv({ cls: 'anthracite-message-images' });
         for (const img of msg.images) {
-          gallery.createEl('img', {
-            cls: 'anthracite-message-image',
-            attr: { src: `data:${img.mediaType};base64,${img.base64}` },
-          });
+          if (img.mediaType === 'application/pdf') {
+            const pdfChip = gallery.createDiv({ cls: 'anthracite-pdf-badge' });
+            const icon = pdfChip.createSpan({ cls: 'anthracite-file-icon' });
+            setIcon(icon, 'file-text');
+            pdfChip.createSpan({ text: 'PDF' });
+          } else {
+            gallery.createEl('img', {
+              cls: 'anthracite-message-image',
+              attr: { src: `data:${img.mediaType};base64,${img.base64}` },
+            });
+          }
         }
       }
       el.createSpan({ text: msg.content });
@@ -321,6 +330,25 @@ export class ChatView extends ItemView {
 
     this.addMessageActions(wrapper, msg.content);
     this.scrollToBottom();
+  }
+
+  private addCodeCopyButtons(el: HTMLElement): void {
+    const codeBlocks = el.querySelectorAll('pre > code');
+    for (const code of Array.from(codeBlocks)) {
+      const pre = code.parentElement;
+      if (!pre || pre.querySelector('.anthracite-code-copy')) continue;
+      pre.addClass('anthracite-code-pre');
+      const btn = pre.createEl('button', {
+        cls: 'anthracite-code-copy clickable-icon',
+        attr: { 'aria-label': 'Copy code' },
+      });
+      setIcon(btn, 'copy');
+      btn.addEventListener('click', async () => {
+        await navigator.clipboard.writeText(code.textContent || '');
+        setIcon(btn, 'check');
+        setTimeout(() => setIcon(btn, 'copy'), 1500);
+      });
+    }
   }
 
   private addMessageActions(wrapper: HTMLElement, content: string): void {
@@ -492,10 +520,10 @@ export class ChatView extends ItemView {
   }
 
   private async processVaultImage(path: string): Promise<void> {
-    const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf'];
     const ext = path.split('.').pop()?.toLowerCase();
     if (!ext || !validExtensions.includes(ext)) {
-      this.addErrorMessage(`Unsupported file type: .${ext || '?'}. Use JPEG, PNG, GIF, or WebP images.`);
+      this.addErrorMessage(`Unsupported file type: .${ext || '?'}. Use JPEG, PNG, GIF, WebP, or PDF.`);
       return;
     }
 
@@ -509,7 +537,7 @@ export class ChatView extends ItemView {
     const base64 = arrayBufferToBase64(buffer);
     const mimeMap: Record<string, string> = {
       jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
-      gif: 'image/gif', webp: 'image/webp',
+      gif: 'image/gif', webp: 'image/webp', pdf: 'application/pdf',
     };
     const mediaType = mimeMap[ext];
     this.pendingImages.push({ base64, mediaType });
@@ -529,9 +557,9 @@ export class ChatView extends ItemView {
   }
 
   private processImageFile(file: File): void {
-    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
     if (!validTypes.includes(file.type)) {
-      this.addErrorMessage(`Unsupported image type: ${file.type}. Use JPEG, PNG, GIF, or WebP.`);
+      this.addErrorMessage(`Unsupported file type: ${file.type}. Use JPEG, PNG, GIF, WebP, or PDF.`);
       return;
     }
 
@@ -550,10 +578,15 @@ export class ChatView extends ItemView {
     if (!container) return;
 
     const chip = (container as HTMLElement).createDiv({ cls: 'anthracite-image-chip' });
-    const thumb = chip.createEl('img', {
-      cls: 'anthracite-image-thumb',
-      attr: { src: `data:${mediaType};base64,${base64}`, alt: filename },
-    });
+    if (mediaType === 'application/pdf') {
+      const icon = chip.createSpan({ cls: 'anthracite-file-icon' });
+      setIcon(icon, 'file-text');
+    } else {
+      chip.createEl('img', {
+        cls: 'anthracite-image-thumb',
+        attr: { src: `data:${mediaType};base64,${base64}`, alt: filename },
+      });
+    }
     chip.createSpan({ cls: 'anthracite-image-chip-name', text: filename });
     const removeBtn = chip.createSpan({ cls: 'anthracite-image-chip-remove' });
     setIcon(removeBtn, 'x');
