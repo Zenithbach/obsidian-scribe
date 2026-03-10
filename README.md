@@ -12,7 +12,7 @@
 - **Extended Thinking** — watch Claude reason through complex questions with a collapsible thinking inspector
 - **Agent Mode** — Claude can read, search, create, and edit notes in your vault (with approval)
 - **Smart Context** — automatically includes relevant notes via backlinks, tags, and folder siblings
-- **Vision** — drag and drop images for Claude to analyze alongside your notes
+- **Vision & PDFs** — drag and drop images or PDFs for Claude to analyze alongside your notes
 - **Custom System Prompts** — point to any vault note to customize Claude's personality
 - **Chat History** — conversations saved as Markdown files in your vault
 - **Multiple Models** — choose between Claude Sonnet 4, Haiku 4, or Opus 4
@@ -37,7 +37,9 @@
 
 ## Credits
 
-Designed by [Geoff Love](https://github.com/Zenithbach). Architecture, code, and documentation by [Claude](https://claude.ai) (Anthropic). Built as a human-AI collaboration using [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
+Built by [Claude](https://claude.ai) (Anthropic) — architecture, code, and documentation written entirely by AI using [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
+
+Designed by [Geoff Love](https://github.com/Zenithbach) — concept, direction, and testing.
 
 ## License
 
