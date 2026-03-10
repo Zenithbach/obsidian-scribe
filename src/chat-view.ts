@@ -73,6 +73,7 @@ export class ChatView extends ItemView {
     splitChatBtn.addEventListener('click', () => this.splitChat());
 
     this.messagesContainer = container.createDiv({ cls: 'anthracite-messages' });
+    this.showWelcome();
 
     const inputArea = container.createDiv({ cls: 'anthracite-input-area' });
 
@@ -259,6 +260,9 @@ export class ChatView extends ItemView {
           this.thinkingContainer = null;
           this.textarea.focus();
 
+          // Add copy action to the streamed message
+          this.addMessageActions(messageGroup, fullText);
+
           // Auto-save assistant message with metadata
           this.chatHistory.appendAssistantMessage(
             fullText,
@@ -285,7 +289,8 @@ export class ChatView extends ItemView {
 
   private renderMessage(msg: ChatMessage): void {
     const cls = msg.role === 'user' ? 'anthracite-message-user' : 'anthracite-message-assistant';
-    const el = this.messagesContainer.createDiv({ cls: `anthracite-message ${cls}` });
+    const wrapper = this.messagesContainer.createDiv({ cls: `anthracite-message-wrapper` });
+    const el = wrapper.createDiv({ cls: `anthracite-message ${cls}` });
 
     if (msg.role === 'assistant') {
       MarkdownRenderer.render(this.app, msg.content, el, '', this.plugin);
@@ -296,7 +301,22 @@ export class ChatView extends ItemView {
       el.createSpan({ text: msg.content });
     }
 
+    this.addMessageActions(wrapper, msg.content);
     this.scrollToBottom();
+  }
+
+  private addMessageActions(wrapper: HTMLElement, content: string): void {
+    const actions = wrapper.createDiv({ cls: 'anthracite-message-actions' });
+
+    const copyBtn = actions.createEl('button', {
+      cls: 'anthracite-action-btn clickable-icon',
+      attr: { 'aria-label': 'Copy message' },
+    });
+    setIcon(copyBtn, 'copy');
+    copyBtn.addEventListener('click', async () => {
+      await navigator.clipboard.writeText(content);
+      new Notice('Copied to clipboard');
+    });
   }
 
   private renderToolUse(toolName: string, input: Record<string, unknown>): void {
@@ -335,6 +355,38 @@ export class ChatView extends ItemView {
     this.scrollToBottom();
   }
 
+  private showWelcome(): void {
+    const welcome = this.messagesContainer.createDiv({ cls: 'anthracite-welcome' });
+    const icon = welcome.createDiv({ cls: 'anthracite-welcome-icon' });
+    setIcon(icon, 'message-circle');
+    welcome.createEl('h3', { text: 'Anthracite' });
+    welcome.createEl('p', {
+      text: 'Your Claude-powered assistant. Open a note for context-aware chat, or just ask anything.',
+      cls: 'anthracite-welcome-subtitle',
+    });
+
+    const suggestions = welcome.createDiv({ cls: 'anthracite-suggestions' });
+    const prompts = [
+      { icon: 'file-text', text: 'Summarize this note', prompt: 'Please summarize this note concisely.' },
+      { icon: 'search', text: 'What do I know about...', prompt: 'Search my vault and tell me what I know about ' },
+      { icon: 'lightbulb', text: 'Help me brainstorm', prompt: 'Help me brainstorm ideas for ' },
+      { icon: 'pen-line', text: 'Help me write', prompt: 'Help me write ' },
+    ];
+
+    for (const s of prompts) {
+      const chip = suggestions.createDiv({ cls: 'anthracite-suggestion-chip' });
+      const chipIcon = chip.createSpan({ cls: 'anthracite-suggestion-icon' });
+      setIcon(chipIcon, s.icon);
+      chip.createSpan({ text: s.text });
+      chip.addEventListener('click', () => {
+        this.textarea.value = s.prompt;
+        this.textarea.focus();
+        // Place cursor at end for prompts that need completion
+        this.textarea.selectionStart = this.textarea.selectionEnd = s.prompt.length;
+      });
+    }
+  }
+
   private setupBackupReminder(): void {
     if (this.plugin.settings.backupReminderDismissed) {
       this.toolExecutor.onBeforeFirstWrite = null;
@@ -363,6 +415,7 @@ export class ChatView extends ItemView {
     this.isStreaming = false;
     this.sendButton.disabled = false;
     this.updateContextBanner();
+    this.showWelcome();
     this.textarea.focus();
 
     // Start fresh history and reset tool trust for next chat
