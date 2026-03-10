@@ -43,4 +43,4 @@ Designed by [Geoff Love](https://github.com/Zenithbach) — concept, direction, 
 
 ## License
 
-MIT
+[GPL-3.0](LICENSE)
