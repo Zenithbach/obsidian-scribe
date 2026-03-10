@@ -105,14 +105,24 @@ export class ChatView extends ItemView {
     });
     this.sendButton.addEventListener('click', () => this.sendMessage());
 
-    // Image drop zone
+    // Drop zone with overlay
+    const dropOverlay = container.createDiv({ cls: 'anthracite-drop-overlay' });
+    const dropIcon = dropOverlay.createDiv({ cls: 'anthracite-drop-icon' });
+    setIcon(dropIcon, 'image-plus');
+    dropOverlay.createDiv({ cls: 'anthracite-drop-text', text: 'Drop image or PDF' });
+
     const dropZone = container;
     dropZone.addEventListener('dragover', (e) => {
       e.preventDefault();
       e.stopPropagation();
       dropZone.addClass('anthracite-drag-over');
     });
-    dropZone.addEventListener('dragleave', () => dropZone.removeClass('anthracite-drag-over'));
+    dropZone.addEventListener('dragleave', (e: DragEvent) => {
+      // Only remove if leaving the container entirely
+      if (!dropZone.contains(e.relatedTarget as Node)) {
+        dropZone.removeClass('anthracite-drag-over');
+      }
+    });
     dropZone.addEventListener('drop', (e: DragEvent) => {
       e.preventDefault();
       dropZone.removeClass('anthracite-drag-over');
