@@ -38,6 +38,11 @@ export class ContextBuilder {
     let totalTokens = 0;
     const visited = new Set<string>();
 
+    // Skip non-markdown files (PDFs, images, etc. produce binary garbage as text)
+    if (activeFile.extension !== 'md') {
+      return { notes: [], totalTokens: 0, activeNote: activeFile.basename };
+    }
+
     // 1. Always include the active note (highest priority)
     const activeContent = await this.app.vault.cachedRead(activeFile);
     const activeTokens = estimateTokens(activeContent);
