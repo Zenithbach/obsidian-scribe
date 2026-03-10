@@ -22,6 +22,7 @@ export interface AnthraciteSettings {
   historyFolder: string;
   maxToolCalls: number;
   systemPromptPath: string;
+  backupReminderDismissed: boolean;
 }
 
 export const DEFAULT_SETTINGS: AnthraciteSettings = {
@@ -32,6 +33,7 @@ export const DEFAULT_SETTINGS: AnthraciteSettings = {
   historyFolder: 'Anthracite/History',
   maxToolCalls: 25,
   systemPromptPath: '',
+  backupReminderDismissed: false,
 };
 
 const MIGRATION_SECRET_NAME = 'anthracite-api-key';

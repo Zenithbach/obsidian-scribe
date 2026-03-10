@@ -5,6 +5,7 @@ import { CLAUDE_MODELS } from './settings';
 import { ContextBuilder } from './context-builder';
 import { VaultToolExecutor } from './vault-tools';
 import { ChatHistory } from './chat-history';
+import { BackupReminderModal } from './backup-reminder-modal';
 
 export const CHAT_VIEW_TYPE = 'anthracite-chat-view';
 
@@ -31,6 +32,7 @@ export class ChatView extends ItemView {
     this.plugin = plugin;
     this.contextBuilder = new ContextBuilder(plugin.app);
     this.toolExecutor = new VaultToolExecutor(plugin.app, [plugin.settings.historyFolder]);
+    this.setupBackupReminder();
     this.chatHistory = new ChatHistory(plugin.app, plugin.settings.historyFolder);
   }
 
@@ -320,6 +322,24 @@ export class ChatView extends ItemView {
     this.scrollToBottom();
   }
 
+  private setupBackupReminder(): void {
+    if (this.plugin.settings.backupReminderDismissed) {
+      this.toolExecutor.onBeforeFirstWrite = null;
+      return;
+    }
+    this.toolExecutor.onBeforeFirstWrite = () => {
+      return new Promise((resolve) => {
+        new BackupReminderModal(this.plugin.app, async (result) => {
+          if (result.dismiss) {
+            this.plugin.settings.backupReminderDismissed = true;
+            await this.plugin.saveSettings();
+          }
+          resolve(result.proceed);
+        }).open();
+      });
+    };
+  }
+
   private clearChat(): void {
     this.client?.abort();
     this.messages = [];
@@ -335,6 +355,7 @@ export class ChatView extends ItemView {
     // Start fresh history and reset tool trust for next chat
     this.chatHistory = new ChatHistory(this.plugin.app, this.plugin.settings.historyFolder);
     this.toolExecutor.resetTrust();
+    this.setupBackupReminder();
   }
 
   private async splitChat(): Promise<void> {
