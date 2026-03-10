@@ -172,13 +172,17 @@
   gap: 6px;
 }
 
-.anthracite-thinking-toggle::before {
-  content: '▶';
-  font-size: 10px;
+.anthracite-thinking-chevron {
+  display: flex;
   transition: transform 150ms ease;
 }
 
-.anthracite-thinking-expanded .anthracite-thinking-toggle::before {
+.anthracite-thinking-chevron svg {
+  width: 14px;
+  height: 14px;
+}
+
+.anthracite-thinking-expanded .anthracite-thinking-chevron {
   transform: rotate(90deg);
 }
 

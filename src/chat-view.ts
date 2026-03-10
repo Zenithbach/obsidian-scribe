@@ -115,6 +115,13 @@ export class ChatView extends ItemView {
     // Image paste
     this.textarea.addEventListener('paste', (e) => this.handlePaste(e));
 
+    // Escape to stop streaming
+    container.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && this.isStreaming) {
+        this.stopStreaming();
+      }
+    });
+
     this.registerEvent(
       this.app.workspace.on('active-leaf-change', () => this.updateContextBanner())
     );
@@ -309,7 +316,9 @@ export class ChatView extends ItemView {
   private createThinkingBlock(parent?: HTMLElement): HTMLElement {
     const wrapper = (parent || this.messagesContainer).createDiv({ cls: 'anthracite-thinking-block' });
     const toggle = wrapper.createDiv({ cls: 'anthracite-thinking-toggle' });
-    toggle.setText('Claude\'s Thinking');
+    const chevron = toggle.createSpan({ cls: 'anthracite-thinking-chevron' });
+    setIcon(chevron, 'chevron-right');
+    toggle.createSpan({ text: 'Claude\'s Thinking' });
     toggle.addEventListener('click', () => {
       wrapper.toggleClass('anthracite-thinking-expanded', !wrapper.hasClass('anthracite-thinking-expanded'));
     });
@@ -462,6 +471,20 @@ export class ChatView extends ItemView {
   /** Focus the chat input textarea. */
   focusInput(): void {
     this.textarea.focus();
+  }
+
+  /** Copy the current conversation to clipboard as Markdown. */
+  async exportToClipboard(): Promise<void> {
+    if (this.messages.length === 0) {
+      new Notice('No messages to export.');
+      return;
+    }
+    const lines = this.messages.map((msg) => {
+      const role = msg.role === 'user' ? '**You**' : '**Claude**';
+      return `${role}:\n${msg.content}`;
+    });
+    await navigator.clipboard.writeText(lines.join('\n\n---\n\n'));
+    new Notice(`Copied ${this.messages.length} messages to clipboard.`);
   }
 
   private scrollToBottom(): void {
