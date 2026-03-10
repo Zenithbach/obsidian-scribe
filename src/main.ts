@@ -98,6 +98,15 @@ export default class AnthracitePlugin extends Plugin {
       },
     });
 
+    this.addCommand({
+      id: 'export-chat',
+      name: 'Copy chat to clipboard',
+      callback: () => {
+        const view = this.getChatView();
+        if (view) view.exportToClipboard();
+      },
+    });
+
     // Settings tab
     this.addSettingTab(new AnthraciteSettingTab(this.app, this));
   }
