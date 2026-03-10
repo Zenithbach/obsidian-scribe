@@ -269,3 +269,19 @@
   gap: 8px;
   margin-top: 12px;
 }
+
+/* Backup Reminder Modal */
+.anthracite-backup-modal h3 {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
+.anthracite-backup-modal p {
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.anthracite-backup-suggestions {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}

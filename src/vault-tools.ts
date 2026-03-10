@@ -108,15 +108,23 @@ export class VaultToolExecutor {
   private app: App;
   private protectedPaths: string[];
   private sessionTrusted = false;
+  private beforeWriteShown = false;
+
+  /**
+   * Optional callback invoked once before the first write operation per session.
+   * Return false to cancel the write. Used for the backup reminder modal.
+   */
+  onBeforeFirstWrite: (() => Promise<boolean>) | null = null;
 
   constructor(app: App, protectedPaths: string[] = []) {
     this.app = app;
     this.protectedPaths = protectedPaths;
   }
 
-  /** Reset session trust (call when starting a new chat). */
+  /** Reset session trust and before-write flag (call when starting a new chat). */
   resetTrust(): void {
     this.sessionTrusted = false;
+    this.beforeWriteShown = false;
   }
 
   async execute(
@@ -124,6 +132,15 @@ export class VaultToolExecutor {
     input: Record<string, unknown>
   ): Promise<ToolResult> {
     try {
+      // One-time backup reminder before first write operation
+      if (WRITE_TOOLS.has(toolName) && !this.beforeWriteShown && this.onBeforeFirstWrite) {
+        this.beforeWriteShown = true;
+        const proceed = await this.onBeforeFirstWrite();
+        if (!proceed) {
+          return { content: 'User cancelled — back up your vault first.', isError: true };
+        }
+      }
+
       // Gate write operations behind confirmation modal
       if (WRITE_TOOLS.has(toolName) && !this.sessionTrusted) {
         const request = this.buildConfirmationRequest(toolName, input);
