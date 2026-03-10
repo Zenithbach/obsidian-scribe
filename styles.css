@@ -107,6 +107,21 @@
   height: 14px;
 }
 
+/* Token Usage Display */
+.anthracite-token-display {
+  padding: 2px 12px;
+  font-size: 11px;
+  color: var(--text-faint);
+  text-align: center;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.anthracite-token-badge {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+
 /* Welcome / Empty State */
 .anthracite-welcome {
   display: flex;

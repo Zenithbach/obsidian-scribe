@@ -1,6 +1,6 @@
 import { ItemView, MarkdownRenderer, Notice, WorkspaceLeaf, setIcon } from 'obsidian';
 import type AnthracitePlugin from './main';
-import { ChatMessage, ClaudeClient, ImageAttachment } from './claude-client';
+import { ChatMessage, ClaudeClient, ImageAttachment, TokenUsage } from './claude-client';
 import { CLAUDE_MODELS } from './settings';
 import { ContextBuilder } from './context-builder';
 import { VaultToolExecutor } from './vault-tools';
@@ -26,6 +26,8 @@ export class ChatView extends ItemView {
   private currentThinking: string = '';
   private currentToolCalls: { name: string; input: Record<string, unknown>; result: string }[] = [];
   private thinkingAutoCollapsed = false;
+  private sessionUsage: TokenUsage = { inputTokens: 0, outputTokens: 0 };
+  private tokenDisplay: HTMLElement;
 
   constructor(leaf: WorkspaceLeaf, plugin: AnthracitePlugin) {
     super(leaf);
@@ -74,6 +76,10 @@ export class ChatView extends ItemView {
 
     this.messagesContainer = container.createDiv({ cls: 'anthracite-messages' });
     this.showWelcome();
+
+    // Session token counter
+    this.tokenDisplay = container.createDiv({ cls: 'anthracite-token-display' });
+    this.updateTokenDisplay();
 
     const inputArea = container.createDiv({ cls: 'anthracite-input-area' });
 
@@ -252,6 +258,12 @@ export class ChatView extends ItemView {
           if (lastCall) lastCall.result = result;
           this.renderToolResult(toolName, result);
         },
+        onUsage: (usage) => {
+          this.sessionUsage.inputTokens += usage.inputTokens;
+          this.sessionUsage.outputTokens += usage.outputTokens;
+          this.updateTokenDisplay();
+          this.renderTokenBadge(messageGroup, usage);
+        },
         onDone: (fullText) => {
           this.messages.push({ role: 'assistant', content: fullText });
           assistantEl.removeClass('anthracite-streaming-cursor');
@@ -346,6 +358,30 @@ export class ChatView extends ItemView {
     return wrapper;
   }
 
+  private formatTokenCount(n: number): string {
+    return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`;
+  }
+
+  private updateTokenDisplay(): void {
+    if (this.sessionUsage.inputTokens === 0 && this.sessionUsage.outputTokens === 0) {
+      this.tokenDisplay.style.display = 'none';
+      return;
+    }
+    this.tokenDisplay.style.display = '';
+    const total = this.sessionUsage.inputTokens + this.sessionUsage.outputTokens;
+    this.tokenDisplay.setText(
+      `Session: ${this.formatTokenCount(total)} tokens (${this.formatTokenCount(this.sessionUsage.inputTokens)} in / ${this.formatTokenCount(this.sessionUsage.outputTokens)} out)`
+    );
+  }
+
+  private renderTokenBadge(parent: HTMLElement, usage: TokenUsage): void {
+    const total = usage.inputTokens + usage.outputTokens;
+    parent.createDiv({
+      cls: 'anthracite-token-badge',
+      text: `${this.formatTokenCount(total)} tokens`,
+    });
+  }
+
   private addErrorMessage(text: string): void {
     const el = this.messagesContainer.createDiv({
       cls: 'anthracite-message anthracite-message-assistant',
@@ -418,10 +454,12 @@ export class ChatView extends ItemView {
     this.showWelcome();
     this.textarea.focus();
 
-    // Start fresh history and reset tool trust for next chat
+    // Start fresh history, reset tool trust and token counter for next chat
     this.chatHistory = new ChatHistory(this.plugin.app, this.plugin.settings.historyFolder);
     this.toolExecutor.resetTrust();
     this.setupBackupReminder();
+    this.sessionUsage = { inputTokens: 0, outputTokens: 0 };
+    this.updateTokenDisplay();
   }
 
   private async splitChat(): Promise<void> {

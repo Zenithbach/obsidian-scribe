@@ -6,12 +6,16 @@ export interface ClaudeModel {
   name: string;
   supportsThinking: boolean;
   supportsVision: boolean;
+  /** Cost per 1M input tokens in USD */
+  inputCostPer1M: number;
+  /** Cost per 1M output tokens in USD (also applies to thinking tokens) */
+  outputCostPer1M: number;
 }
 
 export const CLAUDE_MODELS: ClaudeModel[] = [
-  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', supportsThinking: true, supportsVision: true },
-  { id: 'claude-haiku-4-20250414', name: 'Claude Haiku 4', supportsThinking: false, supportsVision: true },
-  { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', supportsThinking: true, supportsVision: true },
+  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', supportsThinking: true, supportsVision: true, inputCostPer1M: 3, outputCostPer1M: 15 },
+  { id: 'claude-haiku-4-20250414', name: 'Claude Haiku 4', supportsThinking: false, supportsVision: true, inputCostPer1M: 1, outputCostPer1M: 5 },
+  { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', supportsThinking: true, supportsVision: true, inputCostPer1M: 15, outputCostPer1M: 75 },
 ];
 
 export interface AnthraciteSettings {
