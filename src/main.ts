@@ -67,6 +67,37 @@ export default class AnthracitePlugin extends Plugin {
       },
     });
 
+    this.addCommand({
+      id: 'new-chat',
+      name: 'New chat',
+      callback: () => {
+        const view = this.getChatView();
+        if (view) view.newChat();
+      },
+    });
+
+    this.addCommand({
+      id: 'stop-streaming',
+      name: 'Stop response',
+      callback: () => {
+        const view = this.getChatView();
+        if (view) view.stopStreaming();
+      },
+    });
+
+    this.addCommand({
+      id: 'focus-chat',
+      name: 'Focus chat input',
+      callback: async () => {
+        await this.activateChatView();
+        // Small delay for view activation
+        setTimeout(() => {
+          const view = this.getChatView();
+          if (view) view.focusInput();
+        }, 100);
+      },
+    });
+
     // Settings tab
     this.addSettingTab(new AnthraciteSettingTab(this.app, this));
   }
@@ -81,6 +112,11 @@ export default class AnthracitePlugin extends Plugin {
 
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
+  }
+
+  private getChatView(): ChatView | null {
+    const leaves = this.app.workspace.getLeavesOfType(CHAT_VIEW_TYPE);
+    return leaves.length ? (leaves[0].view as ChatView) : null;
   }
 
   private async activateChatView(): Promise<void> {
