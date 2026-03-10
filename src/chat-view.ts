@@ -187,13 +187,23 @@ export class ChatView extends ItemView {
 
     const noteContext = this.contextBuilder.formatForPrompt(context);
 
-    // Create thinking block FIRST (above response) if enabled
-    if (this.plugin.settings.extendedThinking) {
-      this.thinkingContainer = this.createThinkingBlock();
-      this.thinkingContainer.addClass('anthracite-thinking-expanded'); // Start expanded
-    }
+    // Wrapper groups the response + thinking block together
+    const messageGroup = this.messagesContainer.createDiv({ cls: 'anthracite-message-group' });
 
-    const assistantEl = this.createAssistantBubble();
+    // Create response bubble first (order: 1 via CSS)
+    const assistantEl = messageGroup.createDiv({
+      cls: 'anthracite-message anthracite-message-assistant',
+    });
+
+    // Show typing indicator until content arrives
+    const typingIndicator = assistantEl.createDiv({ cls: 'anthracite-typing-indicator' });
+    for (let i = 0; i < 3; i++) typingIndicator.createSpan({ cls: 'anthracite-typing-dot' });
+
+    // Create thinking block below response (order: 2 via CSS)
+    if (this.plugin.settings.extendedThinking) {
+      this.thinkingContainer = this.createThinkingBlock(messageGroup);
+      this.thinkingContainer.addClass('anthracite-thinking-expanded');
+    }
     this.isStreaming = true;
     this.sendButton.disabled = true;
 
@@ -296,14 +306,8 @@ export class ChatView extends ItemView {
     this.scrollToBottom();
   }
 
-  private createAssistantBubble(): HTMLElement {
-    return this.messagesContainer.createDiv({
-      cls: 'anthracite-message anthracite-message-assistant',
-    });
-  }
-
-  private createThinkingBlock(): HTMLElement {
-    const wrapper = this.messagesContainer.createDiv({ cls: 'anthracite-thinking-block' });
+  private createThinkingBlock(parent?: HTMLElement): HTMLElement {
+    const wrapper = (parent || this.messagesContainer).createDiv({ cls: 'anthracite-thinking-block' });
     const toggle = wrapper.createDiv({ cls: 'anthracite-thinking-toggle' });
     toggle.setText('Claude\'s Thinking');
     toggle.addEventListener('click', () => {
@@ -439,6 +443,25 @@ export class ChatView extends ItemView {
   sendPrefilled(text: string): void {
     this.textarea.value = text;
     this.sendMessage();
+  }
+
+  /** Start a new chat session (clears messages, resets trust). */
+  newChat(): void {
+    this.clearChat();
+  }
+
+  /** Stop the current streaming response. */
+  stopStreaming(): void {
+    if (this.isStreaming) {
+      this.client?.abort();
+      this.isStreaming = false;
+      this.sendButton.disabled = false;
+    }
+  }
+
+  /** Focus the chat input textarea. */
+  focusInput(): void {
+    this.textarea.focus();
   }
 
   private scrollToBottom(): void {
