@@ -6,6 +6,8 @@
 
 <p align="center">A Claude-native AI assistant for <a href="https://obsidian.md">Obsidian</a> — chat, think, and edit your vault with Claude.</p>
 
+> **Alpha (v0.1.0)** — Anthracite is functional and actively used, but still early. Expect rough edges, breaking changes between versions, and occasional API quirks. Bug reports and feedback welcome via [GitHub Issues](https://github.com/Zenithbach/obsidian-anthracite/issues).
+
 ## Features
 
 - **Chat with Claude** in a sidebar panel with full Markdown rendering
