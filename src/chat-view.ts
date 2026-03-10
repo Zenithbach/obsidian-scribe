@@ -297,7 +297,7 @@ export class ChatView extends ItemView {
           assistantEl.remove();
           this.thinkingContainer?.remove();
           this.thinkingContainer = null;
-          this.addErrorMessage(`Error: ${error.message}`);
+          this.addErrorMessage(this.friendlyError(error));
           this.isStreaming = false;
           this.sendButton.disabled = false;
         },
@@ -424,6 +424,23 @@ export class ChatView extends ItemView {
       cls: 'anthracite-token-badge',
       text: `${this.formatTokenCount(total)} tokens`,
     });
+  }
+
+  private friendlyError(error: Error): string {
+    const msg = error.message || '';
+    if (msg.includes('prompt is too long')) {
+      return 'The conversation is too long for Claude to process. Try starting a new chat, or remove large attachments.';
+    }
+    if (msg.includes('invalid_api_key') || msg.includes('authentication')) {
+      return 'Invalid API key. Check your key in Settings > Anthracite.';
+    }
+    if (msg.includes('rate_limit') || msg.includes('429')) {
+      return 'Rate limited — too many requests. Wait a moment and try again.';
+    }
+    if (msg.includes('overloaded') || msg.includes('529')) {
+      return 'Claude is currently overloaded. Try again in a few seconds.';
+    }
+    return `Error: ${msg}`;
   }
 
   private addErrorMessage(text: string): void {
