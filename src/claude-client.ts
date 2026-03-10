@@ -12,11 +12,17 @@ export interface ChatMessage {
   images?: ImageAttachment[];
 }
 
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export interface StreamCallbacks {
   onText: (text: string) => void;
   onThinking?: (thinking: string) => void;
   onToolUse?: (toolName: string, input: Record<string, unknown>) => void;
   onToolResult?: (toolName: string, result: string) => void;
+  onUsage?: (usage: TokenUsage) => void;
   onDone: (fullText: string) => void;
   onError: (error: Error) => void;
 }
@@ -91,6 +97,7 @@ export class ClaudeClient {
     let fullText = '';
     let thinkingText = '';
     let loopCount = 0;
+    const totalUsage: TokenUsage = { inputTokens: 0, outputTokens: 0 };
 
     while (loopCount < maxLoops) {
       loopCount++;
@@ -128,8 +135,15 @@ export class ClaudeClient {
 
       const finalMessage = await stream.finalMessage();
 
+      // Accumulate token usage across tool loop iterations
+      if (finalMessage.usage) {
+        totalUsage.inputTokens += finalMessage.usage.input_tokens;
+        totalUsage.outputTokens += finalMessage.usage.output_tokens;
+      }
+
       // If no tool use, we're done
       if (finalMessage.stop_reason !== 'tool_use' || !toolExecutor) {
+        callbacks.onUsage?.(totalUsage);
         callbacks.onDone(fullText);
         return;
       }
@@ -172,6 +186,7 @@ export class ClaudeClient {
       apiMessages.push({ role: 'user', content: toolResults });
     }
 
+    callbacks.onUsage?.(totalUsage);
     callbacks.onDone(fullText || 'Reached maximum tool call limit.');
   }
 
