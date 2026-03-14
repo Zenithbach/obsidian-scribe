@@ -41,11 +41,9 @@
 
 This is a personal project built for fun using [Claude Code](https://docs.anthropic.com/en/docs/claude-code). I'm not a software developer — I just wanted to see what was possible by collaborating with AI, and decided to share the result. Set your expectations accordingly!
 
-Created by [Claude](https://claude.ai) (Anthropic) — architecture, design, code, and documentation written by AI using [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
+**Created by [Claude](https://claude.ai) (Anthropic)** — architecture, design, code, and documentation. Built entirely by AI using [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 
-[Geoff Love](https://github.com/Zenithbach) — concept, direction, and icon design.
-
-Icons created using [Canva](https://canva.com).
+<sub>Geoff Love ([@Zenithbach](https://github.com/Zenithbach)) helped a little. Icons created with [Canva](https://canva.com).</sub>
 
 ## License
 
