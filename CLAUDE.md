@@ -37,7 +37,7 @@ Uses `claude-sonnet-4-20250514`. API calls go to Anthropic only.
 
 ## Testing
 
-Symlink into vault: `ln -s ~/Desktop/Claude/obsidian-scribe ~/path-to-vault/.obsidian/plugins/obsidian-scribe`
+Symlink into vault: `ln -s <project-root> ~/path-to-vault/.obsidian/plugins/obsidian-anthracite`
 
 ## Design Doc
 
