@@ -159,6 +159,11 @@ export class ChatView extends ItemView {
     const text = this.textarea.value.trim();
     if (!text || this.isStreaming) return;
 
+    if (text.length > 100000) {
+      new Notice('Message too long (max 100,000 characters).');
+      return;
+    }
+
     if (!this.plugin.apiKey) {
       this.addErrorMessage('Please set your Claude API key in Settings > Anthracite.');
       return;
@@ -248,6 +253,7 @@ export class ChatView extends ItemView {
           }
           assistantEl.empty();
           MarkdownRenderer.render(this.app, text, assistantEl, '', this.plugin);
+          sanitizeRenderedHtml(assistantEl);
           assistantEl.addClass('anthracite-streaming-cursor');
           this.scrollToBottom();
         },
@@ -317,6 +323,7 @@ export class ChatView extends ItemView {
 
     if (msg.role === 'assistant') {
       MarkdownRenderer.render(this.app, msg.content, el, '', this.plugin);
+      sanitizeRenderedHtml(el);
       this.addCodeCopyButtons(el);
     } else {
       if (msg.images && msg.images.length > 0) {
@@ -440,7 +447,8 @@ export class ChatView extends ItemView {
     if (msg.includes('overloaded') || msg.includes('529')) {
       return 'Claude is currently overloaded. Try again in a few seconds.';
     }
-    return `Error: ${msg}`;
+    const truncated = msg.length > 200 ? msg.slice(0, 200) + '...' : msg;
+    return `Something went wrong. ${truncated}`;
   }
 
   private addErrorMessage(text: string): void {
@@ -686,6 +694,29 @@ export class ChatView extends ItemView {
 
   async onClose(): Promise<void> {
     this.client?.abort();
+  }
+}
+
+function sanitizeRenderedHtml(el: HTMLElement): void {
+  // Remove dangerous elements
+  el.querySelectorAll('script, iframe, object, embed, form').forEach(n => n.remove());
+
+  // Remove event handler attributes from all elements
+  const allElements = Array.from(el.querySelectorAll('*'));
+  for (const elem of allElements) {
+    const attrs = Array.from(elem.attributes);
+    for (const attr of attrs) {
+      if (attr.name.startsWith('on') || attr.value.startsWith('javascript:')) {
+        elem.removeAttribute(attr.name);
+      }
+    }
+    // Remove javascript: from href/src
+    if (elem.hasAttribute('href') && elem.getAttribute('href')?.toLowerCase().startsWith('javascript:')) {
+      elem.removeAttribute('href');
+    }
+    if (elem.hasAttribute('src') && elem.getAttribute('src')?.toLowerCase().startsWith('javascript:')) {
+      elem.removeAttribute('src');
+    }
   }
 }
 

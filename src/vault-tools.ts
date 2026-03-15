@@ -99,6 +99,18 @@ export const VAULT_TOOLS: Anthropic.Tool[] = [
 // Tools that modify the vault and require user confirmation
 const WRITE_TOOLS = new Set(['create_note', 'edit_note']);
 
+function validateVaultPath(path: string): string {
+  // Normalize and reject path traversal
+  const normalized = path.replace(/\\/g, '/').trim();
+  if (normalized.includes('..')) {
+    throw new Error('Invalid path: directory traversal not allowed');
+  }
+  if (normalized.startsWith('/')) {
+    return normalized.slice(1); // Strip leading slash
+  }
+  return normalized;
+}
+
 interface ToolResult {
   content: string;
   isError?: boolean;
@@ -228,6 +240,7 @@ export class VaultToolExecutor {
   }
 
   private async readNote(path: string): Promise<ToolResult> {
+    path = validateVaultPath(path);
     const normalized = this.normalizePath(path);
     if (this.isProtectedPath(normalized)) {
       return { content: 'Cannot read notes in protected folders.', isError: true };
@@ -275,6 +288,7 @@ export class VaultToolExecutor {
   }
 
   private async listFiles(folder: string): Promise<ToolResult> {
+    if (folder) folder = validateVaultPath(folder);
     const files = this.app.vault
       .getMarkdownFiles()
       .filter((f) => {
@@ -289,6 +303,7 @@ export class VaultToolExecutor {
   }
 
   private async createNote(path: string, content: string): Promise<ToolResult> {
+    path = validateVaultPath(path);
     const normalized = this.normalizePath(path);
     if (this.isProtectedPath(normalized)) {
       return { content: 'Cannot create notes in protected folders.', isError: true };
@@ -314,6 +329,7 @@ export class VaultToolExecutor {
   }
 
   private async editNote(path: string, content: string, mode: string): Promise<ToolResult> {
+    path = validateVaultPath(path);
     const normalized = this.normalizePath(path);
     if (this.isProtectedPath(normalized)) {
       return { content: 'Cannot edit notes in protected folders.', isError: true };
